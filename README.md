@@ -1,0 +1,273 @@
+# Content Stream Adapter
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Java Version](https://img.shields.io/badge/Java-17%2B-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
+
+A zero-dependency streaming XML-like parser with FSM-based state transitions, token boundary preservation, and Aho-Corasick pattern matching for structured text processing.
+
+[한국어 문서](README-ko.md)
+
+## Overview
+
+ContentStreamAdapter parses XML-like sectioned text that arrives token-by-token (e.g., from LLM streaming responses), extracts content while preserving path context, and outputs structured tokens in real-time.
+
+## Key Features
+
+- **O(1) State Transitions**: HashMap-based fast transition table
+- **Token Boundary Preservation**: Maintains original token segmentation
+- **Aho-Corasick Algorithm**: O(n) multi-pattern matching
+- **Multi-depth Path Support**: Hierarchical structures like `/section/subsection/content`
+- **Alias Support**: Map multiple tag names to the same path
+- **Fault-tolerant**: Unrecognized or invalid transitions output as text
+
+## Requirements
+
+- Java 17 or higher
+- Zero runtime dependencies
+
+## Installation
+
+This library is built and published locally.
+
+### 1. Publish to Local Maven Repository
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+### 2. Add Dependency to Your Project
+
+**Gradle:**
+```gradle
+repositories {
+    mavenLocal()
+}
+
+dependencies {
+    implementation 'me.hanju:content-stream-adapter:0.1.0'
+}
+```
+
+**Maven:**
+```xml
+<dependency>
+    <groupId>me.hanju</groupId>
+    <artifactId>content-stream-adapter</artifactId>
+    <version>0.1.0</version>
+</dependency>
+```
+
+## Usage
+
+### Basic Usage
+
+```java
+import me.hanju.adapter.ContentStreamAdapter;
+import me.hanju.adapter.transition.TransitionSchema;
+import me.hanju.adapter.payload.TaggedToken;
+
+import java.util.List;
+
+// 1. Define schema
+TransitionSchema schema = TransitionSchema.root()
+    .tag("section", section -> section
+        .tag("subsection", subsection -> subsection
+            .tag("content"))
+        .tag("metadata"))
+    .tag("result");
+
+// 2. Create adapter
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+// 3. Feed tokens
+String input = "Hello <section><subsection><content>world</content></subsection></section>!";
+List<TaggedToken> tokens = adapter.feedToken(input);
+
+// 4. Process output
+for (TaggedToken token : tokens) {
+    System.out.println("Path: " + token.path() + ", Content: " + token.content());
+}
+
+// 5. Flush buffer (on stream end)
+List<TaggedToken> remaining = adapter.flush();
+```
+
+### Output
+
+```
+Path: /, Content: Hello
+Path: /section/subsection/content, Content: world
+Path: /, Content: !
+```
+
+### Alias Support
+
+Map multiple tag names to the same path:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite").alias("rag")           // Both <cite> and <rag> map to /cite
+    .tag("think").alias("thinking");    // Both <think> and <thinking> map to /think
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+// Both processed as /cite path
+adapter.feedToken("Reference: <cite>source1</cite>");
+adapter.feedToken("RAG: <rag>source2</rag>");
+```
+
+### Streaming Processing
+
+#### Pattern 1: Direct Iteration (Simple)
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("think")
+    .tag("cite");
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+// Process LLM streaming tokens
+for (String token : llmStreamingTokens) {
+    List<TaggedToken> results = adapter.feedToken(token);
+
+    for (TaggedToken taggedToken : results) {
+        // Real-time processing per path
+        switch (taggedToken.path()) {
+            case "/think" -> logThinkingProcess(taggedToken.content());
+            case "/cite" -> collectCitation(taggedToken.content());
+            default -> outputToUser(taggedToken.content());
+        }
+    }
+}
+
+// Flush remaining buffer on stream end
+adapter.flush().forEach(token -> processToken(token));
+```
+
+#### Pattern 2: Reactive Streams (WebFlux/Reactor)
+
+```java
+import reactor.core.publisher.Flux;
+
+TransitionSchema schema = TransitionSchema.root()
+    .tag("think")
+    .tag("cite");
+
+// SSE or WebFlux streaming endpoint
+public Flux<ServerSentEvent<String>> streamLlmResponse() {
+    ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+    return llmClient.streamTokens()
+        .flatMapIterable(adapter::feedToken)  // Feed each token
+        .filter(token -> !"/think".equals(token.path()))  // Filter out thinking
+        .map(TaggedToken::content)
+        .concatWith(Flux.defer(() ->
+            Flux.fromIterable(adapter.flush())  // Flush on stream end
+                .filter(token -> !"/think".equals(token.path()))
+                .map(TaggedToken::content)
+        ))
+        .map(content -> ServerSentEvent.builder(content).build());
+}
+```
+
+#### Pattern 3: Consumer Pattern (Callback-based)
+
+```java
+public class StreamingConsumer {
+    private final ContentStreamAdapter adapter;
+    private final Consumer<String> onUserContent;
+    private final Consumer<String> onCitation;
+
+    public StreamingConsumer(
+            TransitionSchema schema,
+            Consumer<String> onUserContent,
+            Consumer<String> onCitation) {
+        this.adapter = new ContentStreamAdapter(schema);
+        this.onUserContent = onUserContent;
+        this.onCitation = onCitation;
+    }
+
+    public void accept(String token) {
+        adapter.feedToken(token).forEach(taggedToken -> {
+            switch (taggedToken.path()) {
+                case "/" -> onUserContent.accept(taggedToken.content());
+                case "/cite" -> onCitation.accept(taggedToken.content());
+                // Silently ignore "/think" path
+            }
+        });
+    }
+
+    public void end() {
+        adapter.flush().forEach(taggedToken -> {
+            switch (taggedToken.path()) {
+                case "/" -> onUserContent.accept(taggedToken.content());
+                case "/cite" -> onCitation.accept(taggedToken.content());
+            }
+        });
+    }
+}
+
+// Usage
+StreamingConsumer consumer = new StreamingConsumer(
+    schema,
+    content -> sendToClient(content),      // User-visible content
+    citation -> storeCitation(citation)     // Background processing
+);
+
+llmStream.forEach(consumer::accept);
+consumer.end();
+```
+
+## Architecture
+
+### Core Components
+
+1. **ContentStreamAdapter**: Main adapter class
+   - Accepts tokens and returns TaggedToken lists
+   - FSM-based state management
+
+2. **TransitionSchema**: Hierarchical tag schema builder
+   - Fluent API for intuitive schema definition
+   - Alias support
+
+3. **TaggedToken**: Output token (record)
+   - `path`: Current FSM path (e.g., "/", "/section", "/section/subsection")
+   - `content`: Text content excluding tags
+
+4. **StreamPatternMatcher**: Aho-Corasick based pattern matching
+   - O(n) multi-pattern detection
+   - Token boundary preservation
+
+5. **TransitionTable**: State transition table
+   - O(1) transitions using TransitionNode tree
+   - Alias support
+
+## Performance Characteristics
+
+- **State Transitions**: O(1) - HashMap lookup
+- **Pattern Matching**: O(n) - Aho-Corasick algorithm (n = input length)
+- **Token Processing**: Preserves original token boundaries
+
+## Limitations
+
+- No support for tag attributes (`<tag attr="value">` → treated as `<tag>`)
+- No support for self-closing tags (`<tag/>`)
+- No support for nested identical tags (`<a><a></a></a>`)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Issues and Pull Requests are welcome.
+
+## Changelog
+
+### 0.1.0 (Current)
+- Initial release
+- Renamed PathBasedStreamProcessor → ContentStreamAdapter
+- Simplified StreamEvent.ContentEvent → TaggedToken
+- TransitionSchema builder pattern for schema definition
+- Separated as independent library
