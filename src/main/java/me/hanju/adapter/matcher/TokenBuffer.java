@@ -136,6 +136,10 @@ public class TokenBuffer {
    * 1. extractUpTo(patternStart)로 패턴 이전 텍스트 추출 (토큰 경계 보존)
    * 2. extractAsString(patternLength)로 패턴 자체 추출 (병합된 문자열)
    *
+   * 성능 최적화:
+   * - List 생성 없이 StringBuilder에 직접 append
+   * - append(CharSequence, start, end)로 중간 String 객체 생성 제거
+   *
    * 예시:
    * - 버퍼: ["Hello", "world"]
    * - extractAsString(5) → "Hello" 반환, 버퍼에서 "Hello" 제거
@@ -154,20 +158,56 @@ public class TokenBuffer {
       return "";
     }
 
-    // length만큼 토큰 추출
-    List<String> extracted = extractUpTo(length);
+    // 최적화: List 생성 없이 StringBuilder에 직접 append
+    StringBuilder sb = new StringBuilder(length);
+    int currentPosition = 0;
 
-    // 추출한 토큰들을 연결하여 반환
-    return String.join("", extracted);
+    for (int i = startIndex; i < tokens.size() && currentPosition < length; i++) {
+      String token = tokens.get(i);
+
+      // 첫 번째 토큰이면 splitOffset 적용
+      String effectiveToken = (i == startIndex && splitOffset > 0)
+          ? token.substring(splitOffset)
+          : token;
+
+      int tokenEnd = currentPosition + effectiveToken.length();
+
+      if (tokenEnd <= length) {
+        // 토큰 전체 append
+        sb.append(effectiveToken);
+        currentPosition = tokenEnd;
+        totalLength -= effectiveToken.length();
+
+        // 다음 토큰으로 이동
+        startIndex = i + 1;
+        splitOffset = 0;
+      } else {
+        // 일부만 append - substring 대신 append(s, start, end) 사용
+        int splitPos = length - currentPosition;
+        sb.append(effectiveToken, 0, splitPos);
+
+        // O(1) 분할
+        splitOffset += splitPos;
+        totalLength -= splitPos;
+        break;
+      }
+    }
+
+    compactIfNeeded();
+    return sb.toString();
   }
 
   /**
    * 버퍼의 모든 토큰을 추출 (flush)
    *
+   * 성능 최적화:
+   * - 정확한 토큰 개수로 초기 capacity 설정 (재할당 방지)
+   *
    * @return 모든 토큰 리스트 (원본 경계 보존)
    */
   public List<String> flushAll() {
-    List<String> result = new ArrayList<>();
+    int remainingTokens = tokens.size() - startIndex;
+    List<String> result = new ArrayList<>(remainingTokens);
 
     for (int i = startIndex; i < tokens.size(); i++) {
       String token = tokens.get(i);
@@ -199,6 +239,10 @@ public class TokenBuffer {
    *
    * 패턴 매칭 등에 사용됩니다.
    *
+   * 성능 최적화:
+   * - totalLength로 정확한 capacity 설정 (재할당 방지)
+   * - append(CharSequence, start, end)로 substring 제거
+   *
    * @return 모든 토큰을 연결한 문자열
    */
   public String getContentAsString() {
@@ -206,11 +250,11 @@ public class TokenBuffer {
       return "";
     }
 
-    StringBuilder sb = new StringBuilder();
+    StringBuilder sb = new StringBuilder(totalLength);
     for (int i = startIndex; i < tokens.size(); i++) {
       String token = tokens.get(i);
       if (i == startIndex && splitOffset > 0) {
-        sb.append(token.substring(splitOffset));
+        sb.append(token, splitOffset, token.length());
       } else {
         sb.append(token);
       }
