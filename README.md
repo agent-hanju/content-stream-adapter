@@ -44,7 +44,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'me.hanju:content-stream-adapter:0.1.0'
+    implementation 'me.hanju:content-stream-adapter:0.1.1'
 }
 ```
 
@@ -53,7 +53,7 @@ dependencies {
 <dependency>
     <groupId>me.hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
 </dependency>
 ```
 
@@ -115,6 +115,40 @@ ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
 adapter.feedToken("Reference: <cite>source1</cite>");
 adapter.feedToken("RAG: <rag>source2</rag>");
 ```
+
+### Event Handling
+
+TaggedToken includes an `event` field that notifies when tags open or close:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite")
+    .tag("think");
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+for (TaggedToken token : adapter.feedToken("Start <cite>source</cite> end")) {
+    if ("OPEN".equals(token.event())) {
+        System.out.println("Tag opened: " + token.path());
+    } else if ("CLOSE".equals(token.event())) {
+        System.out.println("Tag closed: " + token.path());
+    } else {
+        // Regular content (event is null)
+        System.out.println("[" + token.path() + "] " + token.content());
+    }
+}
+```
+
+**Output:**
+```
+[/] Start
+Tag opened: /cite
+[/cite] source
+Tag closed: /cite
+[/] end
+```
+
+This is useful for tracking section boundaries, triggering UI updates, or collecting metadata about tag structure.
 
 ### Streaming Processing
 
@@ -234,6 +268,7 @@ consumer.end();
 3. **TaggedToken**: Output token (record)
    - `path`: Current FSM path (e.g., "/", "/section", "/section/subsection")
    - `content`: Text content excluding tags
+   - `event`: Event type ("OPEN", "CLOSE", or null for regular content)
 
 4. **StreamPatternMatcher**: Aho-Corasick based pattern matching
    - O(n) multi-pattern detection
@@ -265,9 +300,7 @@ Issues and Pull Requests are welcome.
 
 ## Changelog
 
-### 0.1.0 (Current)
-- Initial release
-- Renamed PathBasedStreamProcessor → ContentStreamAdapter
-- Simplified StreamEvent.ContentEvent → TaggedToken
-- TransitionSchema builder pattern for schema definition
-- Separated as independent library
+### 0.1.1 (Current)
+- Performance: Optimized string buffer output with direct StringBuilder usage
+- Performance: Optimized TokenBuffer with O(1) split and remove operations
+- Feature: Added event field to TaggedToken (OPEN/CLOSE events)
