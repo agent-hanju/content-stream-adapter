@@ -126,7 +126,10 @@ class ContentStreamAdapterTest {
 
             List<TaggedToken> tokens = adapter.feedToken("<answer>");
 
-            assertThat(tokens).isEmpty(); // 태그 자체는 반환되지 않음
+            assertThat(tokens).hasSize(1); // OPEN 이벤트 토큰
+            assertThat(tokens.get(0).path()).isEqualTo("/answer");
+            assertThat(tokens.get(0).content()).isNull();
+            assertThat(tokens.get(0).event()).isEqualTo("OPEN");
             assertThat(adapter.getCurrentPath()).isEqualTo("/answer");
         }
 
@@ -154,9 +157,12 @@ class ContentStreamAdapterTest {
 
             List<TaggedToken> tokens = adapter.feedToken("텍스트<answer>");
 
-            assertThat(tokens).hasSize(1);
+            assertThat(tokens).hasSize(2);
             assertThat(tokens.get(0).path()).isEqualTo("/");
             assertThat(tokens.get(0).content()).isEqualTo("텍스트");
+            assertThat(tokens.get(0).event()).isNull();
+            assertThat(tokens.get(1).path()).isEqualTo("/answer");
+            assertThat(tokens.get(1).event()).isEqualTo("OPEN");
             assertThat(adapter.getCurrentPath()).isEqualTo("/answer");
         }
     }
@@ -175,7 +181,9 @@ class ContentStreamAdapterTest {
             ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
 
             // <thinking>
-            adapter.feedToken("<thinking>");
+            List<TaggedToken> openTokens = adapter.feedToken("<thinking>");
+            assertThat(openTokens).hasSize(1);
+            assertThat(openTokens.get(0).event()).isEqualTo("OPEN");
             assertThat(adapter.getCurrentPath()).isEqualTo("/thinking");
 
             // 내용
@@ -183,9 +191,13 @@ class ContentStreamAdapterTest {
             assertThat(tokens).hasSize(1);
             assertThat(tokens.get(0).path()).isEqualTo("/thinking");
             assertThat(tokens.get(0).content()).isEqualTo("content");
+            assertThat(tokens.get(0).event()).isNull();
 
             // </thinking>
-            adapter.feedToken("</thinking>");
+            List<TaggedToken> closeTokens = adapter.feedToken("</thinking>");
+            assertThat(closeTokens).hasSize(1);
+            assertThat(closeTokens.get(0).path()).isEqualTo("/");
+            assertThat(closeTokens.get(0).event()).isEqualTo("CLOSE");
             assertThat(adapter.getCurrentPath()).isEqualTo("/");
         }
 
@@ -198,23 +210,32 @@ class ContentStreamAdapterTest {
             ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
 
             // <cite>
-            adapter.feedToken("<cite>");
+            List<TaggedToken> citeOpen = adapter.feedToken("<cite>");
+            assertThat(citeOpen).hasSize(1);
+            assertThat(citeOpen.get(0).event()).isEqualTo("OPEN");
             assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
 
             // <id>
-            adapter.feedToken("<id>");
+            List<TaggedToken> idOpen = adapter.feedToken("<id>");
+            assertThat(idOpen).hasSize(1);
+            assertThat(idOpen.get(0).event()).isEqualTo("OPEN");
             assertThat(adapter.getCurrentPath()).isEqualTo("/cite/id");
 
             // 내용
             List<TaggedToken> tokens = adapter.feedToken("123");
             assertThat(tokens.get(0).path()).isEqualTo("/cite/id");
+            assertThat(tokens.get(0).event()).isNull();
 
             // </id>
-            adapter.feedToken("</id>");
+            List<TaggedToken> idClose = adapter.feedToken("</id>");
+            assertThat(idClose).hasSize(1);
+            assertThat(idClose.get(0).event()).isEqualTo("CLOSE");
             assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
 
             // </cite>
-            adapter.feedToken("</cite>");
+            List<TaggedToken> citeClose = adapter.feedToken("</cite>");
+            assertThat(citeClose).hasSize(1);
+            assertThat(citeClose.get(0).event()).isEqualTo("CLOSE");
             assertThat(adapter.getCurrentPath()).isEqualTo("/");
         }
 
@@ -249,8 +270,10 @@ class ContentStreamAdapterTest {
                 .tag("cite").alias("rag");
             ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
 
-            adapter.feedToken("<rag>");
+            List<TaggedToken> tokens = adapter.feedToken("<rag>");
 
+            assertThat(tokens).hasSize(1);
+            assertThat(tokens.get(0).event()).isEqualTo("OPEN");
             assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
         }
 
@@ -262,11 +285,15 @@ class ContentStreamAdapterTest {
             ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
 
             // <cite>로 열고
-            adapter.feedToken("<cite>");
+            List<TaggedToken> openTokens = adapter.feedToken("<cite>");
+            assertThat(openTokens).hasSize(1);
+            assertThat(openTokens.get(0).event()).isEqualTo("OPEN");
             assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
 
             // </rag>로 닫기
-            adapter.feedToken("</rag>");
+            List<TaggedToken> closeTokens = adapter.feedToken("</rag>");
+            assertThat(closeTokens).hasSize(1);
+            assertThat(closeTokens.get(0).event()).isEqualTo("CLOSE");
             assertThat(adapter.getCurrentPath()).isEqualTo("/");
         }
 
@@ -281,9 +308,12 @@ class ContentStreamAdapterTest {
             adapter.feedToken("<rag>");
             List<TaggedToken> tokens = adapter.feedToken("content");
             assertThat(tokens.get(0).path()).isEqualTo("/cite");
+            assertThat(tokens.get(0).event()).isNull();
 
             // </cite>로 닫기
-            adapter.feedToken("</cite>");
+            List<TaggedToken> closeTokens = adapter.feedToken("</cite>");
+            assertThat(closeTokens).hasSize(1);
+            assertThat(closeTokens.get(0).event()).isEqualTo("CLOSE");
             assertThat(adapter.getCurrentPath()).isEqualTo("/");
         }
     }
@@ -306,7 +336,8 @@ class ContentStreamAdapterTest {
             assertThat(tokens1).isEmpty(); // 패턴 가능성으로 버퍼링
 
             List<TaggedToken> tokens2 = adapter.feedToken("wer>");
-            assertThat(tokens2).isEmpty(); // 태그 검출
+            assertThat(tokens2).hasSize(1); // OPEN 이벤트 토큰
+            assertThat(tokens2.get(0).event()).isEqualTo("OPEN");
             assertThat(adapter.getCurrentPath()).isEqualTo("/answer");
         }
 
@@ -373,12 +404,22 @@ class ContentStreamAdapterTest {
             // </answer>
             allTokens.addAll(adapter.feedToken("</answer>"));
 
-            // 검증
-            assertThat(allTokens).hasSize(2);
+            // 검증: OPEN thinking, content, CLOSE thinking, OPEN answer, content, CLOSE answer
+            assertThat(allTokens).hasSize(6);
             assertThat(allTokens.get(0).path()).isEqualTo("/thinking");
-            assertThat(allTokens.get(0).content()).isEqualTo("법률 검토 중...");
-            assertThat(allTokens.get(1).path()).isEqualTo("/answer");
-            assertThat(allTokens.get(1).content()).isEqualTo("결론은 A입니다.");
+            assertThat(allTokens.get(0).event()).isEqualTo("OPEN");
+            assertThat(allTokens.get(1).path()).isEqualTo("/thinking");
+            assertThat(allTokens.get(1).content()).isEqualTo("법률 검토 중...");
+            assertThat(allTokens.get(1).event()).isNull();
+            assertThat(allTokens.get(2).path()).isEqualTo("/");
+            assertThat(allTokens.get(2).event()).isEqualTo("CLOSE");
+            assertThat(allTokens.get(3).path()).isEqualTo("/answer");
+            assertThat(allTokens.get(3).event()).isEqualTo("OPEN");
+            assertThat(allTokens.get(4).path()).isEqualTo("/answer");
+            assertThat(allTokens.get(4).content()).isEqualTo("결론은 A입니다.");
+            assertThat(allTokens.get(4).event()).isNull();
+            assertThat(allTokens.get(5).path()).isEqualTo("/");
+            assertThat(allTokens.get(5).event()).isEqualTo("CLOSE");
         }
 
         @Test
@@ -408,12 +449,18 @@ class ContentStreamAdapterTest {
             // </cite>
             allTokens.addAll(adapter.feedToken("</cite>"));
 
-            // 검증
-            assertThat(allTokens).hasSize(2);
-            assertThat(allTokens.get(0).path()).isEqualTo("/cite/id");
-            assertThat(allTokens.get(0).content()).isEqualTo("doc-123");
-            assertThat(allTokens.get(1).path()).isEqualTo("/cite/source");
-            assertThat(allTokens.get(1).content()).isEqualTo("법률 문서");
+            // 검증: OPEN cite, OPEN id, content, CLOSE id, OPEN source, content, CLOSE source, CLOSE cite
+            assertThat(allTokens).hasSize(8);
+
+            // 컨텐츠만 필터링
+            List<TaggedToken> contentTokens = allTokens.stream()
+                .filter(t -> t.event() == null)
+                .toList();
+            assertThat(contentTokens).hasSize(2);
+            assertThat(contentTokens.get(0).path()).isEqualTo("/cite/id");
+            assertThat(contentTokens.get(0).content()).isEqualTo("doc-123");
+            assertThat(contentTokens.get(1).path()).isEqualTo("/cite/source");
+            assertThat(contentTokens.get(1).content()).isEqualTo("법률 문서");
         }
 
         @Test
@@ -445,10 +492,18 @@ class ContentStreamAdapterTest {
             // "nking>"
             allTokens.addAll(adapter.feedToken("nking>"));
 
-            // 검증 - 모든 텍스트가 /thinking 경로로 태깅됨
-            assertThat(allTokens).allMatch(token -> token.path().equals("/thinking"));
-            assertThat(allTokens).extracting("content")
+            // 검증 - OPEN thinking, 3개 컨텐츠 토큰, CLOSE thinking
+            assertThat(allTokens).hasSize(5);
+            assertThat(allTokens.get(0).event()).isEqualTo("OPEN");
+
+            List<TaggedToken> contentTokens = allTokens.stream()
+                .filter(t -> t.event() == null)
+                .toList();
+            assertThat(contentTokens).allMatch(token -> token.path().equals("/thinking"));
+            assertThat(contentTokens).extracting("content")
                 .containsExactly("Let me ", "think", "...");
+
+            assertThat(allTokens.get(4).event()).isEqualTo("CLOSE");
         }
 
         @Test
@@ -477,16 +532,22 @@ class ContentStreamAdapterTest {
             // 일반 텍스트
             allTokens.addAll(adapter.feedToken(" 감사합니다."));
 
-            // 검증
-            assertThat(allTokens).hasSize(4);
-            assertThat(allTokens.get(0).path()).isEqualTo("/");
-            assertThat(allTokens.get(0).content()).isEqualTo("안녕하세요. ");
-            assertThat(allTokens.get(1).path()).isEqualTo("/thinking");
-            assertThat(allTokens.get(1).content()).isEqualTo("추론...");
-            assertThat(allTokens.get(2).path()).isEqualTo("/answer");
-            assertThat(allTokens.get(2).content()).isEqualTo("답변");
-            assertThat(allTokens.get(3).path()).isEqualTo("/");
-            assertThat(allTokens.get(3).content()).isEqualTo(" 감사합니다.");
+            // 검증: 일반 텍스트, OPEN thinking, content, CLOSE, OPEN answer, content, CLOSE, 일반 텍스트
+            assertThat(allTokens).hasSize(8);
+
+            // 컨텐츠만 필터링
+            List<TaggedToken> contentTokens = allTokens.stream()
+                .filter(t -> t.event() == null)
+                .toList();
+            assertThat(contentTokens).hasSize(4);
+            assertThat(contentTokens.get(0).path()).isEqualTo("/");
+            assertThat(contentTokens.get(0).content()).isEqualTo("안녕하세요. ");
+            assertThat(contentTokens.get(1).path()).isEqualTo("/thinking");
+            assertThat(contentTokens.get(1).content()).isEqualTo("추론...");
+            assertThat(contentTokens.get(2).path()).isEqualTo("/answer");
+            assertThat(contentTokens.get(2).content()).isEqualTo("답변");
+            assertThat(contentTokens.get(3).path()).isEqualTo("/");
+            assertThat(contentTokens.get(3).content()).isEqualTo(" 감사합니다.");
         }
 
         @Test
@@ -508,16 +569,18 @@ class ContentStreamAdapterTest {
             allTokens.addAll(adapter.feedToken("valid"));
             allTokens.addAll(adapter.feedToken("</answer>"));
 
-            // 검증 - invalid 태그는 일반 텍스트로 처리
-            assertThat(allTokens).hasSize(4);
+            // 검증 - invalid 태그는 일반 텍스트로, answer는 OPEN + content + CLOSE
+            assertThat(allTokens).hasSize(6);
             assertThat(allTokens.get(0).path()).isEqualTo("/");
             assertThat(allTokens.get(0).content()).isEqualTo("<invalid>");
             assertThat(allTokens.get(1).path()).isEqualTo("/");
             assertThat(allTokens.get(1).content()).isEqualTo("content");
             assertThat(allTokens.get(2).path()).isEqualTo("/");
             assertThat(allTokens.get(2).content()).isEqualTo("</invalid>");
-            assertThat(allTokens.get(3).path()).isEqualTo("/answer");
-            assertThat(allTokens.get(3).content()).isEqualTo("valid");
+            assertThat(allTokens.get(3).event()).isEqualTo("OPEN");
+            assertThat(allTokens.get(4).path()).isEqualTo("/answer");
+            assertThat(allTokens.get(4).content()).isEqualTo("valid");
+            assertThat(allTokens.get(5).event()).isEqualTo("CLOSE");
         }
 
         @Test
@@ -556,12 +619,16 @@ class ContentStreamAdapterTest {
             // </section>
             allTokens.addAll(adapter.feedToken("</section>"));
 
-            // 검증
-            assertThat(allTokens).hasSize(2);
-            assertThat(allTokens.get(0).path()).isEqualTo("/section/title");
-            assertThat(allTokens.get(0).content()).isEqualTo("Section Title");
-            assertThat(allTokens.get(1).path()).isEqualTo("/section/subsection/content");
-            assertThat(allTokens.get(1).content()).isEqualTo("Subsection Content");
+            // 검증: 많은 이벤트 토큰들 포함
+            // 컨텐츠만 필터링해서 검증
+            List<TaggedToken> contentTokens = allTokens.stream()
+                .filter(t -> t.event() == null)
+                .toList();
+            assertThat(contentTokens).hasSize(2);
+            assertThat(contentTokens.get(0).path()).isEqualTo("/section/title");
+            assertThat(contentTokens.get(0).content()).isEqualTo("Section Title");
+            assertThat(contentTokens.get(1).path()).isEqualTo("/section/subsection/content");
+            assertThat(contentTokens.get(1).content()).isEqualTo("Subsection Content");
         }
 
         @Test
@@ -587,12 +654,12 @@ class ContentStreamAdapterTest {
             // 남은 버퍼 flush
             allTokens.addAll(adapter.flush());
 
-            // 검증 - 경로별로 그룹화
+            // 검증 - 경로별로 그룹화 (이벤트 제외)
             List<TaggedToken> rootTokens = allTokens.stream()
-                .filter(t -> t.path().equals("/"))
+                .filter(t -> t.path().equals("/") && t.event() == null)
                 .toList();
             List<TaggedToken> answerTokens = allTokens.stream()
-                .filter(t -> t.path().equals("/answer"))
+                .filter(t -> t.path().equals("/answer") && t.event() == null)
                 .toList();
 
             assertThat(rootTokens).hasSize(2);
@@ -601,6 +668,14 @@ class ContentStreamAdapterTest {
             assertThat(answerTokens).hasSize(8); // "This", " ", "is", " ", "the", " ", "answer", "."
             assertThat(String.join("", answerTokens.stream().map(TaggedToken::content).toList()))
                 .isEqualTo("This is the answer.");
+
+            // 이벤트 토큰 검증
+            List<TaggedToken> eventTokens = allTokens.stream()
+                .filter(t -> t.event() != null)
+                .toList();
+            assertThat(eventTokens).hasSize(2); // OPEN, CLOSE
+            assertThat(eventTokens.get(0).event()).isEqualTo("OPEN");
+            assertThat(eventTokens.get(1).event()).isEqualTo("CLOSE");
         }
     }
 

@@ -90,7 +90,14 @@ public class ContentStreamAdapter {
       TagInfo tag = TagInfo.parse(patternMatch.pattern());
       boolean transitioned = tryTransition(tag);
 
-      if (!transitioned) {
+      if (transitioned) {
+        // 전이 성공: OPEN 또는 CLOSE 이벤트 추가
+        if (tag.type() == TagType.OPEN) {
+          tokens.add(TaggedToken.openEvent(currentState.getPath()));
+        } else {
+          tokens.add(TaggedToken.closeEvent(currentState.getPath()));
+        }
+      } else {
         // 전이 실패한 태그는 텍스트로 처리
         tokens.add(new TaggedToken(currentState.getPath(), patternMatch.pattern()));
       }
