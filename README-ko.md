@@ -44,7 +44,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'me.hanju:content-stream-adapter:0.1.0'
+    implementation 'me.hanju:content-stream-adapter:0.1.1'
 }
 ```
 
@@ -53,7 +53,7 @@ dependencies {
 <dependency>
     <groupId>me.hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
 </dependency>
 ```
 
@@ -115,6 +115,40 @@ ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
 adapter.feedToken("Reference: <cite>source1</cite>");
 adapter.feedToken("RAG: <rag>source2</rag>");
 ```
+
+### 이벤트 처리
+
+TaggedToken은 태그가 열리고 닫힐 때 알림을 제공하는 `event` 필드를 포함합니다:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite")
+    .tag("think");
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+for (TaggedToken token : adapter.feedToken("Start <cite>source</cite> end")) {
+    if ("OPEN".equals(token.event())) {
+        System.out.println("태그 열림: " + token.path());
+    } else if ("CLOSE".equals(token.event())) {
+        System.out.println("태그 닫힘: " + token.path());
+    } else {
+        // 일반 콘텐츠 (event는 null)
+        System.out.println("[" + token.path() + "] " + token.content());
+    }
+}
+```
+
+**출력:**
+```
+[/] Start
+태그 열림: /cite
+[/cite] source
+태그 닫힘: /cite
+[/] end
+```
+
+이 기능은 섹션 경계 추적, UI 업데이트 트리거, 태그 구조에 대한 메타데이터 수집 등에 유용합니다.
 
 ### 스트리밍 처리
 
@@ -234,6 +268,7 @@ consumer.end();
 3. **TaggedToken**: 출력 토큰 (record)
    - `path`: 현재 FSM 경로 (예: "/", "/section", "/section/subsection")
    - `content`: 태그를 제외한 텍스트 내용
+   - `event`: 이벤트 타입 ("OPEN", "CLOSE", 또는 일반 콘텐츠일 때 null)
 
 4. **StreamPatternMatcher**: Aho-Corasick 기반 패턴 매칭
    - O(n) 다중 패턴 검출
@@ -265,9 +300,7 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 변경 이력
 
-### 0.1.0 (Current)
-- 초기 릴리스
-- PathBasedStreamProcessor → ContentStreamAdapter로 리네이밍
-- StreamEvent.ContentEvent → TaggedToken으로 단순화
-- TransitionSchema 빌더 패턴으로 스키마 정의
-- 독립 라이브러리로 분리
+### 0.1.1 (Current)
+- 성능: StringBuilder 직접 사용으로 문자열 버퍼 출력 최적화
+- 성능: O(1) 분할 및 제거 연산으로 TokenBuffer 최적화
+- 기능: TaggedToken에 event 필드 추가 (OPEN/CLOSE 이벤트)
