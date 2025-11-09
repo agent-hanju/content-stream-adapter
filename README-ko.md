@@ -27,33 +27,51 @@ LLM 스트리밍 응답에서 XML-like 태그를 파싱하여 경로별로 구�
 
 ## 설치
 
-이 라이브러리는 로컬에서 빌드하여 사용합니다.
+[![](https://jitpack.io/v/agent-hanju/content-stream-adapter.svg)](https://jitpack.io/#agent-hanju/content-stream-adapter)
 
-### 1. 로컬 Maven 저장소에 배포
+이 라이브러리는 [JitPack](https://jitpack.io/#agent-hanju/content-stream-adapter)을 통해 배포됩니다.
 
-```bash
-./gradlew publishToMavenLocal
-```
+### Gradle
 
-### 2. 프로젝트에서 사용
+**Step 1.** `settings.gradle`에 JitPack 저장소 추가:
 
-**Gradle:**
 ```gradle
-repositories {
-    mavenLocal()
-}
-
-dependencies {
-    implementation 'me.hanju:content-stream-adapter:0.1.1'
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
 }
 ```
 
-**Maven:**
+**Step 2.** 의존성 추가:
+
+```gradle
+dependencies {
+    implementation 'com.github.agent-hanju:content-stream-adapter:v0.1.1'
+}
+```
+
+### Maven
+
+**Step 1.** `pom.xml`에 JitPack 저장소 추가:
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+```
+
+**Step 2.** 의존성 추가:
+
 ```xml
 <dependency>
-    <groupId>me.hanju</groupId>
+    <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.1</version>
+    <version>v0.1.1</version>
 </dependency>
 ```
 
@@ -140,6 +158,7 @@ for (TaggedToken token : adapter.feedToken("Start <cite>source</cite> end")) {
 ```
 
 **출력:**
+
 ```
 [/] Start
 태그 열림: /cite
@@ -258,19 +277,23 @@ consumer.end();
 ### 핵심 컴포넌트
 
 1. **ContentStreamAdapter**: 메인 어댑터 클래스
+
    - 토큰을 입력받아 TaggedToken 리스트 반환
    - FSM 기반 상태 관리
 
 2. **TransitionSchema**: 계층적 태그 스키마 빌더
+
    - Fluent API로 직관적인 스키마 정의
    - 별칭 지원
 
 3. **TaggedToken**: 출력 토큰 (record)
+
    - `path`: 현재 FSM 경로 (예: "/", "/section", "/section/subsection")
    - `content`: 태그를 제외한 텍스트 내용
    - `event`: 이벤트 타입 ("OPEN", "CLOSE", 또는 일반 콘텐츠일 때 null)
 
 4. **StreamPatternMatcher**: Aho-Corasick 기반 패턴 매칭
+
    - O(n) 다중 패턴 검출
    - 토큰 경계 보존
 
@@ -300,7 +323,8 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 변경 이력
 
-### 0.1.1 (Current)
+### v0.1.1 (Current)
+
 - 성능: StringBuilder 직접 사용으로 문자열 버퍼 출력 최적화
 - 성능: O(1) 분할 및 제거 연산으로 TokenBuffer 최적화
 - 기능: TaggedToken에 event 필드 추가 (OPEN/CLOSE 이벤트)

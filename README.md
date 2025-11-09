@@ -27,33 +27,51 @@ ContentStreamAdapter parses XML-like sectioned text that arrives token-by-token 
 
 ## Installation
 
-This library is built and published locally.
+[![](https://jitpack.io/v/agent-hanju/content-stream-adapter.svg)](https://jitpack.io/#agent-hanju/content-stream-adapter)
 
-### 1. Publish to Local Maven Repository
+This library is available via [JitPack](https://jitpack.io/#agent-hanju/content-stream-adapter).
 
-```bash
-./gradlew publishToMavenLocal
-```
+### Gradle
 
-### 2. Add Dependency to Your Project
+**Step 1.** Add JitPack repository to your `settings.gradle`:
 
-**Gradle:**
 ```gradle
-repositories {
-    mavenLocal()
-}
-
-dependencies {
-    implementation 'me.hanju:content-stream-adapter:0.1.1'
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
 }
 ```
 
-**Maven:**
+**Step 2.** Add the dependency:
+
+```gradle
+dependencies {
+    implementation 'com.github.agent-hanju:content-stream-adapter:v0.1.1'
+}
+```
+
+### Maven
+
+**Step 1.** Add JitPack repository to your `pom.xml`:
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+```
+
+**Step 2.** Add the dependency:
+
 ```xml
 <dependency>
-    <groupId>me.hanju</groupId>
+    <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.1</version>
+    <version>v0.1.1</version>
 </dependency>
 ```
 
@@ -140,6 +158,7 @@ for (TaggedToken token : adapter.feedToken("Start <cite>source</cite> end")) {
 ```
 
 **Output:**
+
 ```
 [/] Start
 Tag opened: /cite
@@ -258,19 +277,23 @@ consumer.end();
 ### Core Components
 
 1. **ContentStreamAdapter**: Main adapter class
+
    - Accepts tokens and returns TaggedToken lists
    - FSM-based state management
 
 2. **TransitionSchema**: Hierarchical tag schema builder
+
    - Fluent API for intuitive schema definition
    - Alias support
 
 3. **TaggedToken**: Output token (record)
+
    - `path`: Current FSM path (e.g., "/", "/section", "/section/subsection")
    - `content`: Text content excluding tags
    - `event`: Event type ("OPEN", "CLOSE", or null for regular content)
 
 4. **StreamPatternMatcher**: Aho-Corasick based pattern matching
+
    - O(n) multi-pattern detection
    - Token boundary preservation
 
@@ -300,7 +323,8 @@ Issues and Pull Requests are welcome.
 
 ## Changelog
 
-### 0.1.1 (Current)
+### v0.1.1 (Current)
+
 - Performance: Optimized string buffer output with direct StringBuilder usage
 - Performance: Optimized TokenBuffer with O(1) split and remove operations
 - Feature: Added event field to TaggedToken (OPEN/CLOSE events)

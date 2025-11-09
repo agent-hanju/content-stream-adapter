@@ -3,8 +3,8 @@ plugins {
     id 'maven-publish'
 }
 
-group = 'me.hanju'
-version = '0.1.1'
+group = 'com.github.agent-hanju'
+version = 'v0.1.1'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -41,11 +41,13 @@ publishing {
     publications {
         maven(MavenPublication) {
             from components.java
+            groupId = 'com.github.agent-hanju'
+            artifactId = 'content-stream-adapter'
 
             pom {
                 name = 'Content Stream Adapter'
                 description = 'A zero-allocation streaming XML-like parser with FSM-based state transitions, token boundary preservation, and Aho-Corasick pattern matching for sectioned text processing'
-                url = 'https://github.com/hanju/content-stream-adapter'
+                url = 'https://github.com/agent-hanju/content-stream-adapter'
 
                 licenses {
                     license {
