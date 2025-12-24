@@ -3,12 +3,13 @@ plugins {
     id 'maven-publish'
 }
 
-group = 'com.github.agent-hanju'
-version = 'v0.1.1'
+group = 'me.hanju.adapter'
+version = '0.1.2'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
     withSourcesJar()
     withJavadocJar()
 }
@@ -25,12 +26,12 @@ repositories {
 
 dependencies {
     // Test dependencies
-    testImplementation platform('org.junit:junit-bom:5.10.1')
+    testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // AssertJ for fluent assertions
-    testImplementation 'org.assertj:assertj-core:3.24.2'
+    testImplementation 'org.assertj:assertj-core:3.27.6'
 }
 
 test {
@@ -58,8 +59,8 @@ publishing {
 
                 developers {
                     developer {
-                        id = 'hanju'
-                        name = 'hanju'
+                        id = 'agent-hanju'
+                        email = 'agent.hanju@gmail.com'
                     }
                 }
             }

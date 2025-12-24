@@ -1,7 +1,7 @@
 # Content Stream Adapter
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Java Version](https://img.shields.io/badge/Java-17%2B-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
+[![Java Version](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 
 LLM 스트리밍 응답에서 XML-like 태그를 파싱하여 경로별로 구조화된 토큰을 출력하는 zero-dependency Java 라이브러리.
 
@@ -22,7 +22,7 @@ LLM 스트리밍 응답에서 XML-like 태그를 파싱하여 경로별로 구�
 
 ## 의존성
 
-- Java 17 이상
+- Java 21 이상
 - 외부 런타임 의존성 없음 (zero-dependency)
 
 ## 설치
@@ -48,7 +48,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:v0.1.1'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.2'
 }
 ```
 
@@ -71,7 +71,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>v0.1.1</version>
+    <version>0.1.2</version>
 </dependency>
 ```
 
@@ -323,7 +323,13 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 변경 이력
 
-### v0.1.1 (Current)
+### 0.1.2 (Current)
+
+- 빌드: Java 21로 업그레이드 (toolchain 기반)
+- 빌드: JUnit 5.10.1 → 5.11.4 업데이트
+- 빌드: AssertJ 3.24.2 → 3.27.6 업데이트
+
+### 0.1.1
 
 - 성능: StringBuilder 직접 사용으로 문자열 버퍼 출력 최적화
 - 성능: O(1) 분할 및 제거 연산으로 TokenBuffer 최적화

@@ -1,7 +1,7 @@
 # Content Stream Adapter
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Java Version](https://img.shields.io/badge/Java-17%2B-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
+[![Java Version](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 
 A zero-dependency streaming XML-like parser with FSM-based state transitions, token boundary preservation, and Aho-Corasick pattern matching for structured text processing.
 
@@ -22,7 +22,7 @@ ContentStreamAdapter parses XML-like sectioned text that arrives token-by-token 
 
 ## Requirements
 
-- Java 17 or higher
+- Java 21 or higher
 - Zero runtime dependencies
 
 ## Installation
@@ -48,7 +48,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:v0.1.1'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.2'
 }
 ```
 
@@ -71,7 +71,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>v0.1.1</version>
+    <version>0.1.2</version>
 </dependency>
 ```
 
@@ -323,7 +323,13 @@ Issues and Pull Requests are welcome.
 
 ## Changelog
 
-### v0.1.1 (Current)
+### 0.1.2 (Current)
+
+- Build: Upgraded to Java 21 (toolchain-based)
+- Build: Updated JUnit 5.10.1 → 5.11.4
+- Build: Updated AssertJ 3.24.2 → 3.27.6
+
+### 0.1.1
 
 - Performance: Optimized string buffer output with direct StringBuilder usage
 - Performance: Optimized TokenBuffer with O(1) split and remove operations
