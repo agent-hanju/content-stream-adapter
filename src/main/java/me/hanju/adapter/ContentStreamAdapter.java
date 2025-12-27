@@ -25,6 +25,7 @@ import me.hanju.adapter.transition.TransitionTable;
  * </p>
  *
  * <h3>사용 예시:</h3>
+ *
  * <pre>
  * TransitionSchema schema = TransitionSchema.root()
  *     .tag("section", section -> section
@@ -88,6 +89,7 @@ public class ContentStreamAdapter {
       }
 
       TagInfo tag = TagInfo.parse(patternMatch.pattern());
+      String pathBeforeTransition = currentState.getPath();
       boolean transitioned = tryTransition(tag);
 
       if (transitioned) {
@@ -95,7 +97,7 @@ public class ContentStreamAdapter {
         if (tag.type() == TagType.OPEN) {
           tokens.add(TaggedToken.openEvent(currentState.getPath()));
         } else {
-          tokens.add(TaggedToken.closeEvent(currentState.getPath()));
+          tokens.add(TaggedToken.closeEvent(pathBeforeTransition));
         }
       } else {
         // 전이 실패한 태그는 텍스트로 처리
