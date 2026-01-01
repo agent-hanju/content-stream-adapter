@@ -1,5 +1,6 @@
 package me.hanju.adapter.matcher;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -47,26 +48,39 @@ public class StreamPatternMatcher {
   }
 
   /**
-   * 새 토큰을 추가하고 패턴 매칭 결과를 반환합니다.
+   * 새 토큰을 추가하고 패턴 매칭 결과들을 반환합니다.
+   * 버퍼에 처리할 패턴이 남아있으면 모두 처리합니다.
    *
    * @param token 추가할 토큰
-   * @return 매칭 결과 (패턴 검출, 안전한 텍스트 토큰, 또는 매칭 없음)
+   * @return 매칭 결과 리스트 (패턴 검출, 안전한 텍스트 토큰들)
    */
-  public MatchResult addTokenAndGetResult(String token) {
+  public List<MatchResult> addTokenAndGetResult(String token) {
     if (token == null) {
       throw new IllegalArgumentException("토큰은 null일 수 없습니다");
     }
-    if (token.isEmpty()) {
-      return new MatchResult.NoMatchResult();
+
+    List<MatchResult> results = new ArrayList<>();
+
+    if (!token.isEmpty()) {
+      tokenBuffer.addToken(token);
     }
 
-    tokenBuffer.addToken(token);
-    return processBuffer();
+    while (!tokenBuffer.isEmpty()) {
+      MatchResult result = processBuffer();
+      if (result instanceof MatchResult.NoMatchResult) {
+        break;
+      }
+      results.add(result);
+    }
+
+    return results;
   }
 
   /**
    * 버퍼의 내용을 처리하여 패턴 매칭을 수행합니다.
    * Aho-Corasick 알고리즘으로 Greedy matching 방식을 사용합니다.
+   *
+   * @return 매칭 결과 (패턴 검출, 안전한 텍스트 토큰, 또는 매칭 없음)
    */
   private MatchResult processBuffer() {
     if (tokenBuffer.isEmpty()) {

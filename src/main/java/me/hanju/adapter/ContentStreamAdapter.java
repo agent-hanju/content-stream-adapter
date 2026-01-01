@@ -73,8 +73,14 @@ public class ContentStreamAdapter {
 
     List<TaggedToken> tokens = new ArrayList<>();
 
-    MatchResult result = patternMatcher.addTokenAndGetResult(token);
+    for (MatchResult result : patternMatcher.addTokenAndGetResult(token)) {
+      processMatchResult(result, tokens);
+    }
 
+    return tokens;
+  }
+
+  private void processMatchResult(MatchResult result, List<TaggedToken> tokens) {
     if (result instanceof MatchResult.TokenMatchResult tokenMatch) {
       for (String t : tokenMatch.tokens()) {
         if (!t.isEmpty()) {
@@ -104,8 +110,6 @@ public class ContentStreamAdapter {
         tokens.add(new TaggedToken(currentState.getPath(), patternMatch.pattern()));
       }
     }
-
-    return tokens;
   }
 
   /**

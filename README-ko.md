@@ -48,7 +48,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.2'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.4'
 }
 ```
 
@@ -71,7 +71,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.4</version>
 </dependency>
 ```
 
@@ -323,7 +323,16 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 변경 이력
 
-### 0.1.2 (Current)
+### 0.1.4 (Current)
+
+- 수정: 단일 토큰 내 다중 패턴이 올바르게 처리되도록 수정
+- 수정: 패턴 검출 후 prefix가 아닌 텍스트가 즉시 flush되도록 수정
+
+### 0.1.3
+
+- 수정: close 이벤트 시 path가 닫힌 이후의 path로 나타나는 오류 수정
+
+### 0.1.2
 
 - 빌드: Java 21로 업그레이드 (toolchain 기반)
 - 빌드: JUnit 5.10.1 → 5.11.4 업데이트

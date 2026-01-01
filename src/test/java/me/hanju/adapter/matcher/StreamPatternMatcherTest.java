@@ -94,14 +94,14 @@ class StreamPatternMatcherTest {
     }
 
     @Test
-    @DisplayName("빈 토큰 추가 시 NoMatch 반환 (빈 문자열 매칭은 무의미)")
+    @DisplayName("빈 토큰 추가 시 빈 리스트 반환 (빈 문자열 매칭은 무의미)")
     void testAddTokenWithEmpty() {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("test"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      MatchResult result = matcher.addTokenAndGetResult("");
+      List<MatchResult> results = matcher.addTokenAndGetResult("");
 
-      assertThat(result).isInstanceOf(MatchResult.NoMatchResult.class);
+      assertThat(results).isEmpty();
     }
   }
 
@@ -117,10 +117,11 @@ class StreamPatternMatcherTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("hello"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      MatchResult result = matcher.addTokenAndGetResult("hello");
+      List<MatchResult> results = matcher.addTokenAndGetResult("hello");
 
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result;
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) results.getFirst();
       assertThat(detected.pattern()).isEqualTo("hello");
       assertThat(detected.prevTokens()).isEmpty();
     }
@@ -132,14 +133,16 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "hello "는 패턴이 아니므로 즉시 TextChunks로 반환
-      MatchResult r1 = matcher.addTokenAndGetResult("hello ");
-      assertThat(r1).isInstanceOf(MatchResult.TokenMatchResult.class);
-      assertThat(((MatchResult.TokenMatchResult) r1).tokens()).containsExactly("hello ");
+      List<MatchResult> r1 = matcher.addTokenAndGetResult("hello ");
+      assertThat(r1).hasSize(1);
+      assertThat(r1.getFirst()).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) r1.getFirst()).tokens()).containsExactly("hello ");
 
       // "world"가 패턴 검출, prefix는 이미 flush됨
-      MatchResult r2 = matcher.addTokenAndGetResult("world");
-      assertThat(r2).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) r2;
+      List<MatchResult> r2 = matcher.addTokenAndGetResult("world");
+      assertThat(r2).hasSize(1);
+      assertThat(r2.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) r2.getFirst();
       assertThat(detected.pattern()).isEqualTo("world");
       assertThat(detected.prevTokens()).isEmpty(); // 이미 flush됨
     }
@@ -151,14 +154,16 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "he" 검출
-      MatchResult result1 = matcher.addTokenAndGetResult("he");
-      assertThat(result1).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) result1).pattern()).isEqualTo("he");
+      List<MatchResult> results1 = matcher.addTokenAndGetResult("he");
+      assertThat(results1).hasSize(1);
+      assertThat(results1.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results1.getFirst()).pattern()).isEqualTo("he");
 
       // "she" 검출
-      MatchResult result2 = matcher.addTokenAndGetResult("she");
-      assertThat(result2).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) result2).pattern()).isEqualTo("she");
+      List<MatchResult> results2 = matcher.addTokenAndGetResult("she");
+      assertThat(results2).hasSize(1);
+      assertThat(results2.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results2.getFirst()).pattern()).isEqualTo("she");
     }
 
     @Test
@@ -168,11 +173,12 @@ class StreamPatternMatcherTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("he", "she"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      MatchResult result = matcher.addTokenAndGetResult("she");
+      List<MatchResult> results = matcher.addTokenAndGetResult("she");
 
       // "she"가 더 길므로 "she"가 우선 검출
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result;
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) results.getFirst();
       assertThat(detected.pattern()).isEqualTo("she");
     }
 
@@ -183,14 +189,15 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "hel"은 "hello"의 prefix일 수 있으므로 버퍼에 유지
-      MatchResult r1 = matcher.addTokenAndGetResult("hel");
-      assertThat(r1).isInstanceOf(MatchResult.NoMatchResult.class);
+      List<MatchResult> r1 = matcher.addTokenAndGetResult("hel");
+      assertThat(r1).isEmpty();
       assertThat(matcher.getBufferContent()).isEqualTo("hel");
 
       // "lo" 추가 시 "hello" 패턴 검출
-      MatchResult r2 = matcher.addTokenAndGetResult("lo");
-      assertThat(r2).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) r2;
+      List<MatchResult> r2 = matcher.addTokenAndGetResult("lo");
+      assertThat(r2).hasSize(1);
+      assertThat(r2.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) r2.getFirst();
       assertThat(detected.pattern()).isEqualTo("hello");
       assertThat(detected.prevTokens()).isEmpty();
     }
@@ -209,10 +216,11 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "hello"는 "<tag>"의 prefix가 될 수 없으므로 즉시 flush
-      MatchResult result = matcher.addTokenAndGetResult("hello");
+      List<MatchResult> results = matcher.addTokenAndGetResult("hello");
 
-      assertThat(result).isInstanceOf(MatchResult.TokenMatchResult.class);
-      assertThat(((MatchResult.TokenMatchResult) result).tokens()).containsExactly("hello");
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) results.getFirst()).tokens()).containsExactly("hello");
       assertThat(matcher.getBufferSize()).isZero();
     }
 
@@ -223,9 +231,9 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "<t"는 "<tag>"의 prefix일 수 있으므로 버퍼에 유지
-      MatchResult result = matcher.addTokenAndGetResult("<t");
+      List<MatchResult> results = matcher.addTokenAndGetResult("<t");
 
-      assertThat(result).isInstanceOf(MatchResult.NoMatchResult.class);
+      assertThat(results).isEmpty();
       assertThat(matcher.getBufferSize()).isGreaterThan(0);
       assertThat(matcher.getBufferContent()).isEqualTo("<t");
     }
@@ -292,11 +300,13 @@ class StreamPatternMatcherTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("aa"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      MatchResult result1 = matcher.addTokenAndGetResult("aa");
-      assertThat(result1).isInstanceOf(MatchResult.PatternMatchResult.class);
+      List<MatchResult> results1 = matcher.addTokenAndGetResult("aa");
+      assertThat(results1).hasSize(1);
+      assertThat(results1.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
 
-      MatchResult result2 = matcher.addTokenAndGetResult("aa");
-      assertThat(result2).isInstanceOf(MatchResult.PatternMatchResult.class);
+      List<MatchResult> results2 = matcher.addTokenAndGetResult("aa");
+      assertThat(results2).hasSize(1);
+      assertThat(results2.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
     }
 
     @Test
@@ -307,10 +317,11 @@ class StreamPatternMatcherTest {
 
       // 버퍼 크기보다 훨씬 큰 텍스트 입력
       String longText = "a".repeat(100);
-      MatchResult result = matcher.addTokenAndGetResult(longText);
+      List<MatchResult> results = matcher.addTokenAndGetResult(longText);
 
       // 오버플로우 방지를 위해 일부가 flush되어야 함
-      assertThat(result).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(results).isNotEmpty();
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.TokenMatchResult.class);
     }
 
     @Test
@@ -319,11 +330,16 @@ class StreamPatternMatcherTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("안녕"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      MatchResult result = matcher.addTokenAndGetResult("안녕하세요");
+      // "안녕하세요" → "안녕" 검출, "하세요"는 패턴 prefix 아니므로 flush
+      List<MatchResult> results = matcher.addTokenAndGetResult("안녕하세요");
 
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result;
-      assertThat(detected.pattern()).isEqualTo("안녕");
+      assertThat(results).hasSize(2);
+      assertThat(results.get(0)).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results.get(0)).pattern()).isEqualTo("안녕");
+      assertThat(results.get(1)).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) results.get(1)).tokens()).containsExactly("하세요");
+
+      assertThat(matcher.getBufferSize()).isZero();
     }
 
     @Test
@@ -332,10 +348,11 @@ class StreamPatternMatcherTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("<tag>"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      MatchResult result = matcher.addTokenAndGetResult("<tag>");
+      List<MatchResult> results = matcher.addTokenAndGetResult("<tag>");
 
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result;
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) results.getFirst();
       assertThat(detected.pattern()).isEqualTo("<tag>");
     }
   }
@@ -352,15 +369,17 @@ class StreamPatternMatcherTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("<result>", "</result>"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      MatchResult result1 = matcher.addTokenAndGetResult("<result>");
-      assertThat(result1).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) result1).pattern()).isEqualTo("<result>");
+      List<MatchResult> results1 = matcher.addTokenAndGetResult("<result>");
+      assertThat(results1).hasSize(1);
+      assertThat(results1.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results1.getFirst()).pattern()).isEqualTo("<result>");
 
       matcher.addTokenAndGetResult("content");
 
-      MatchResult result2 = matcher.addTokenAndGetResult("</result>");
-      assertThat(result2).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) result2).pattern()).isEqualTo("</result>");
+      List<MatchResult> results2 = matcher.addTokenAndGetResult("</result>");
+      assertThat(results2).hasSize(1);
+      assertThat(results2.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results2.getFirst()).pattern()).isEqualTo("</result>");
     }
 
     @Test
@@ -370,12 +389,13 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // 태그가 여러 토큰에 걸쳐 입력됨 (실제 LLM 스트리밍)
-      MatchResult r1 = matcher.addTokenAndGetResult("<ans");
-      assertThat(r1).isInstanceOf(MatchResult.NoMatchResult.class);
+      List<MatchResult> r1 = matcher.addTokenAndGetResult("<ans");
+      assertThat(r1).isEmpty();
 
-      MatchResult r2 = matcher.addTokenAndGetResult("wer>");
-      assertThat(r2).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) r2).pattern()).isEqualTo("<answer>");
+      List<MatchResult> r2 = matcher.addTokenAndGetResult("wer>");
+      assertThat(r2).hasSize(1);
+      assertThat(r2.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) r2.getFirst()).pattern()).isEqualTo("<answer>");
     }
 
     @Test
@@ -385,15 +405,15 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // 실제 LLM 스트리밍 토큰 시뮬레이션
-      List<MatchResult> results = new ArrayList<>();
+      List<MatchResult> allResults = new ArrayList<>();
       String[] tokens = { "<think", "ing>", "Let me ", "think", "...</", "think", "ing>" };
 
       for (String token : tokens) {
-        results.add(matcher.addTokenAndGetResult(token));
+        allResults.addAll(matcher.addTokenAndGetResult(token));
       }
 
       // 두 태그 모두 검출되어야 함
-      long detectedCount = results.stream()
+      long detectedCount = allResults.stream()
           .filter(r -> r instanceof MatchResult.PatternMatchResult)
           .count();
       assertThat(detectedCount).isEqualTo(2);
@@ -408,25 +428,29 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // 복잡한 응답 시뮬레이션
-      MatchResult r1 = matcher.addTokenAndGetResult("<search>");
+      List<MatchResult> r1 = matcher.addTokenAndGetResult("<search>");
       matcher.addTokenAndGetResult("query");
-      MatchResult r2 = matcher.addTokenAndGetResult("</search>");
-      MatchResult r3 = matcher.addTokenAndGetResult("<answer>");
+      List<MatchResult> r2 = matcher.addTokenAndGetResult("</search>");
+      List<MatchResult> r3 = matcher.addTokenAndGetResult("<answer>");
       matcher.addTokenAndGetResult("response");
-      MatchResult r4 = matcher.addTokenAndGetResult("</answer>");
+      List<MatchResult> r4 = matcher.addTokenAndGetResult("</answer>");
 
       // 4개 태그 모두 검출 확인
-      assertThat(r1).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) r1).pattern()).isEqualTo("<search>");
+      assertThat(r1).hasSize(1);
+      assertThat(r1.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) r1.getFirst()).pattern()).isEqualTo("<search>");
 
-      assertThat(r2).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) r2).pattern()).isEqualTo("</search>");
+      assertThat(r2).hasSize(1);
+      assertThat(r2.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) r2.getFirst()).pattern()).isEqualTo("</search>");
 
-      assertThat(r3).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) r3).pattern()).isEqualTo("<answer>");
+      assertThat(r3).hasSize(1);
+      assertThat(r3.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) r3.getFirst()).pattern()).isEqualTo("<answer>");
 
-      assertThat(r4).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) r4).pattern()).isEqualTo("</answer>");
+      assertThat(r4).hasSize(1);
+      assertThat(r4.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) r4.getFirst()).pattern()).isEqualTo("</answer>");
     }
 
     @Test
@@ -439,11 +463,12 @@ class StreamPatternMatcherTest {
       matcher.addTokenAndGetResult("<inner>");
       matcher.addTokenAndGetResult("content");
       matcher.addTokenAndGetResult("</inner>");
-      MatchResult result = matcher.addTokenAndGetResult("</outer>");
+      List<MatchResult> results = matcher.addTokenAndGetResult("</outer>");
 
       // 마지막 태그 검출 확인
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) result).pattern()).isEqualTo("</outer>");
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results.getFirst()).pattern()).isEqualTo("</outer>");
     }
 
     @Test
@@ -457,11 +482,12 @@ class StreamPatternMatcherTest {
       matcher.addTokenAndGetResult("t");
       matcher.addTokenAndGetResult("a");
       matcher.addTokenAndGetResult("g");
-      MatchResult result = matcher.addTokenAndGetResult(">");
+      List<MatchResult> results = matcher.addTokenAndGetResult(">");
 
       // 마지막 토큰에서 패턴 검출
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) result).pattern()).isEqualTo("<tag>");
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results.getFirst()).pattern()).isEqualTo("<tag>");
     }
 
     @Test
@@ -471,19 +497,22 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // 일반 텍스트가 여러 토큰으로 입력됨
-      MatchResult r1 = matcher.addTokenAndGetResult("Hello");
-      MatchResult r2 = matcher.addTokenAndGetResult(" ");
-      MatchResult r3 = matcher.addTokenAndGetResult("World");
+      List<MatchResult> r1 = matcher.addTokenAndGetResult("Hello");
+      List<MatchResult> r2 = matcher.addTokenAndGetResult(" ");
+      List<MatchResult> r3 = matcher.addTokenAndGetResult("World");
 
       // 토큰 경계가 보존되어 반환되어야 함
-      assertThat(r1).isInstanceOf(MatchResult.TokenMatchResult.class);
-      assertThat(((MatchResult.TokenMatchResult) r1).tokens()).containsExactly("Hello");
+      assertThat(r1).hasSize(1);
+      assertThat(r1.getFirst()).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) r1.getFirst()).tokens()).containsExactly("Hello");
 
-      assertThat(r2).isInstanceOf(MatchResult.TokenMatchResult.class);
-      assertThat(((MatchResult.TokenMatchResult) r2).tokens()).containsExactly(" ");
+      assertThat(r2).hasSize(1);
+      assertThat(r2.getFirst()).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) r2.getFirst()).tokens()).containsExactly(" ");
 
-      assertThat(r3).isInstanceOf(MatchResult.TokenMatchResult.class);
-      assertThat(((MatchResult.TokenMatchResult) r3).tokens()).containsExactly("World");
+      assertThat(r3).hasSize(1);
+      assertThat(r3.getFirst()).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) r3.getFirst()).tokens()).containsExactly("World");
     }
 
     @Test
@@ -492,11 +521,12 @@ class StreamPatternMatcherTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("<tag>"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      // "텍스트"와 "<tag>"가 한 토큰에 함께 입력됨
-      MatchResult result = matcher.addTokenAndGetResult("텍스트<tag>");
+      // "텍스트"와 "<tag>"가 한 토큰에 함께 입력됨 → 두 결과가 한번에 반환
+      List<MatchResult> results = matcher.addTokenAndGetResult("텍스트<tag>");
 
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result;
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) results.getFirst();
       assertThat(detected.pattern()).isEqualTo("<tag>");
       assertThat(detected.prevTokens()).containsExactly("텍스트");
     }
@@ -508,34 +538,35 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "텍스트1"과 "텍스트2"는 패턴이 아니므로 flush
-      MatchResult r1 = matcher.addTokenAndGetResult("텍스트1");
-      assertThat(r1).isInstanceOf(MatchResult.TokenMatchResult.class);
+      List<MatchResult> r1 = matcher.addTokenAndGetResult("텍스트1");
+      assertThat(r1).hasSize(1);
+      assertThat(r1.getFirst()).isInstanceOf(MatchResult.TokenMatchResult.class);
 
-      MatchResult r2 = matcher.addTokenAndGetResult("텍스트2");
-      assertThat(r2).isInstanceOf(MatchResult.TokenMatchResult.class);
+      List<MatchResult> r2 = matcher.addTokenAndGetResult("텍스트2");
+      assertThat(r2).hasSize(1);
+      assertThat(r2.getFirst()).isInstanceOf(MatchResult.TokenMatchResult.class);
 
       // "<tag>" 검출
-      MatchResult r3 = matcher.addTokenAndGetResult("<tag>");
-      assertThat(r3).isInstanceOf(MatchResult.PatternMatchResult.class);
-      assertThat(((MatchResult.PatternMatchResult) r3).prevTokens()).isEmpty();
+      List<MatchResult> r3 = matcher.addTokenAndGetResult("<tag>");
+      assertThat(r3).hasSize(1);
+      assertThat(r3.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) r3.getFirst()).prevTokens()).isEmpty();
     }
 
     @Test
-    @DisplayName("패턴 뒤 텍스트는 다음 호출에서 처리")
+    @DisplayName("패턴 뒤 텍스트도 함께 처리")
     void testSuffixAfterPattern() {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("<tag>"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      // "<tag>"와 "텍스트"가 한 토큰에 함께 입력됨
-      MatchResult r1 = matcher.addTokenAndGetResult("<tag>텍스트");
+      // "<tag>"와 "텍스트"가 한 토큰에 함께 입력됨 → 두 결과 모두 반환
+      List<MatchResult> results = matcher.addTokenAndGetResult("<tag>텍스트");
 
-      // 패턴만 먼저 반환
-      assertThat(r1).isInstanceOf(MatchResult.PatternMatchResult.class);
-
-      // "텍스트"는 다음 입력 시 처리됨
-      // 추가 입력이 없으면 flushRemaining으로 가져와야 함
-      List<String> remaining = matcher.flushRemaining();
-      assertThat(remaining).containsExactly("텍스트");
+      // 패턴과 텍스트 모두 반환
+      assertThat(results).hasSize(2);
+      assertThat(results.get(0)).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(results.get(1)).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) results.get(1)).tokens()).containsExactly("텍스트");
     }
   }
 
@@ -552,29 +583,94 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "shedd" 완성 → 더 긴 패턴 "shedd" 검출
-      MatchResult result = matcher.addTokenAndGetResult("shedd");
+      List<MatchResult> results = matcher.addTokenAndGetResult("shedd");
 
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result;
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) results.getFirst();
       assertThat(detected.pattern()).isEqualTo("shedd");
       assertThat(detected.prevTokens()).isEmpty();
     }
 
     @Test
-    @DisplayName("더 긴 패턴 미완성 - 'she' 검출 후 나머지 처리")
+    @DisplayName("더 긴 패턴 미완성 - 'she' 검출 후 나머지 flush")
     void testLongerPatternNotCompleted() {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("she", "shedd"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      // "shedg" - "shedd" 미완성, "she" 검출
-      MatchResult result1 = matcher.addTokenAndGetResult("shedg");
+      // "shedg" - "shedd" 미완성, "she" 검출, "dg"는 패턴 prefix 아니므로 flush
+      List<MatchResult> results = matcher.addTokenAndGetResult("shedg");
 
-      assertThat(result1).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result1;
-      assertThat(detected.pattern()).isEqualTo("she");
+      assertThat(results).hasSize(2);
+      assertThat(results.get(0)).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results.get(0)).pattern()).isEqualTo("she");
+      assertThat(results.get(1)).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) results.get(1)).tokens()).containsExactly("dg");
 
-      // "dg"는 버퍼에 남음
-      assertThat(matcher.getBufferContent()).isEqualTo("dg");
+      assertThat(matcher.getBufferSize()).isZero();
+    }
+
+    @Test
+    @DisplayName("더 긴 패턴 미완성 - 나머지가 다른 패턴 prefix면 버퍼에 유지")
+    void testLongerPatternNotCompletedButPrefixOfAnother() {
+      // "she", "shedd", "dog" 패턴 → "sheddo" 입력 시 "she" 검출 후 "ddo"는 "dog"의 prefix가 아니므로 flush
+      // "she", "shedd", "ddog" 패턴 → "shedd" 입력 후 "d"가 "ddog"의 prefix이므로 버퍼 유지
+      AhoCorasickTrie trie = new AhoCorasickTrie(List.of("she", "shedd", "ddog"));
+      StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
+
+      // "shedx" - "shedd" 미완성, "she" 검출, "dx"는 "ddog"의 prefix 아니므로 flush
+      List<MatchResult> results1 = matcher.addTokenAndGetResult("shedx");
+      assertThat(results1).hasSize(2);
+      assertThat(((MatchResult.PatternMatchResult) results1.get(0)).pattern()).isEqualTo("she");
+      assertThat(((MatchResult.TokenMatchResult) results1.get(1)).tokens()).containsExactly("dx");
+
+      matcher.reset();
+
+      // "shedd" - "she" 검출 후 "dd"는 "ddog"의 prefix이므로 버퍼에 유지
+      List<MatchResult> results2 = matcher.addTokenAndGetResult("shedd");
+      assertThat(results2).hasSize(1);
+      assertThat(((MatchResult.PatternMatchResult) results2.getFirst()).pattern()).isEqualTo("shedd");
+      assertThat(matcher.getBufferSize()).isZero();
+
+      matcher.reset();
+
+      // "shedo" - "she" 검출 후 "do"는 "ddog"의 prefix가 아니므로 flush
+      List<MatchResult> results3 = matcher.addTokenAndGetResult("shedo");
+      assertThat(results3).hasSize(2);
+      assertThat(((MatchResult.PatternMatchResult) results3.get(0)).pattern()).isEqualTo("she");
+      assertThat(((MatchResult.TokenMatchResult) results3.get(1)).tokens()).containsExactly("do");
+
+      matcher.reset();
+
+      // "shed" + "dog" = "sheddog" → "shedd" 패턴 검출 + "og" flush
+      // (주의: "shedd"가 완성되어 "she" + "ddog"가 아님!)
+      matcher.addTokenAndGetResult("shed");  // "she" pending, "shed" 버퍼
+      List<MatchResult> results4 = matcher.addTokenAndGetResult("dog");  // "sheddog" → "shedd" 검출
+
+      assertThat(results4).hasSize(2);
+      assertThat(((MatchResult.PatternMatchResult) results4.get(0)).pattern()).isEqualTo("shedd");
+      assertThat(((MatchResult.TokenMatchResult) results4.get(1)).tokens()).containsExactly("og");
+
+      matcher.reset();
+
+      // "ddog" 패턴 검출 테스트: "she" 후 "ddog" 입력
+      List<MatchResult> results5 = matcher.addTokenAndGetResult("sheddog");
+
+      // "sheddog"에서 "shedd" 검출, 나머지 "og"는 flush
+      List<String> patterns5 = results5.stream()
+          .filter(r -> r instanceof MatchResult.PatternMatchResult)
+          .map(r -> ((MatchResult.PatternMatchResult) r).pattern())
+          .toList();
+      assertThat(patterns5).containsExactly("shedd");
+
+      matcher.reset();
+
+      // "ddog" 직접 검출 테스트
+      List<MatchResult> results6 = matcher.addTokenAndGetResult("xddog");
+      assertThat(results6.stream()
+          .filter(r -> r instanceof MatchResult.PatternMatchResult)
+          .map(r -> ((MatchResult.PatternMatchResult) r).pattern())
+          .toList()).containsExactly("ddog");
     }
 
     @Test
@@ -584,35 +680,37 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "shed" 입력 - "she" 발견하지만 대기
-      MatchResult result1 = matcher.addTokenAndGetResult("shed");
-      assertThat(result1).isInstanceOf(MatchResult.NoMatchResult.class);
+      List<MatchResult> results1 = matcher.addTokenAndGetResult("shed");
+      assertThat(results1).isEmpty();
       assertThat(matcher.getBufferContent()).isEqualTo("shed");
 
       // "d" 추가 - "shedd" 완성
-      MatchResult result2 = matcher.addTokenAndGetResult("d");
-      assertThat(result2).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result2;
+      List<MatchResult> results2 = matcher.addTokenAndGetResult("d");
+      assertThat(results2).hasSize(1);
+      assertThat(results2.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) results2.getFirst();
       assertThat(detected.pattern()).isEqualTo("shedd");
     }
 
     @Test
-    @DisplayName("분할 입력 - 'shed' + 'g' → 'she' 검출 + 'dg' 남음")
+    @DisplayName("분할 입력 - 'shed' + 'g' → 'she' 검출 + 'dg' flush")
     void testSplitInputNotCompleted() {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("she", "shedd"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "shed" 입력 - "she" 발견하지만 대기
-      MatchResult result1 = matcher.addTokenAndGetResult("shed");
-      assertThat(result1).isInstanceOf(MatchResult.NoMatchResult.class);
+      List<MatchResult> results1 = matcher.addTokenAndGetResult("shed");
+      assertThat(results1).isEmpty();
 
-      // "g" 추가 - 전이 실패, "she" 반환
-      MatchResult result2 = matcher.addTokenAndGetResult("g");
-      assertThat(result2).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result2;
-      assertThat(detected.pattern()).isEqualTo("she");
+      // "g" 추가 - 전이 실패, "she" 반환, "dg"는 패턴 prefix 아니므로 flush
+      List<MatchResult> results2 = matcher.addTokenAndGetResult("g");
+      assertThat(results2).hasSize(2);
+      assertThat(results2.get(0)).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results2.get(0)).pattern()).isEqualTo("she");
+      assertThat(results2.get(1)).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) results2.get(1)).tokens()).containsExactly("d", "g");
 
-      // "dg"는 버퍼에 남음
-      assertThat(matcher.getBufferContent()).isEqualTo("dg");
+      assertThat(matcher.getBufferSize()).isZero();
     }
 
     @Test
@@ -622,10 +720,11 @@ class StreamPatternMatcherTest {
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
       // "abc" 완성 → 가장 긴 패턴 검출
-      MatchResult result = matcher.addTokenAndGetResult("abc");
+      List<MatchResult> results = matcher.addTokenAndGetResult("abc");
 
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result;
+      assertThat(results).hasSize(1);
+      assertThat(results.getFirst()).isInstanceOf(MatchResult.PatternMatchResult.class);
+      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) results.getFirst();
       assertThat(detected.pattern()).isEqualTo("abc");
     }
 
@@ -635,15 +734,16 @@ class StreamPatternMatcherTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("a", "ab", "abc"));
       StreamPatternMatcher matcher = new StreamPatternMatcher(trie);
 
-      // "abx" → "ab" 검출
-      MatchResult result = matcher.addTokenAndGetResult("abx");
+      // "abx" → "ab" 검출, "x"는 패턴 prefix 아니므로 flush
+      List<MatchResult> results = matcher.addTokenAndGetResult("abx");
 
-      assertThat(result).isInstanceOf(MatchResult.PatternMatchResult.class);
-      MatchResult.PatternMatchResult detected = (MatchResult.PatternMatchResult) result;
-      assertThat(detected.pattern()).isEqualTo("ab");
+      assertThat(results).hasSize(2);
+      assertThat(results.get(0)).isInstanceOf(MatchResult.PatternMatchResult.class);
+      assertThat(((MatchResult.PatternMatchResult) results.get(0)).pattern()).isEqualTo("ab");
+      assertThat(results.get(1)).isInstanceOf(MatchResult.TokenMatchResult.class);
+      assertThat(((MatchResult.TokenMatchResult) results.get(1)).tokens()).containsExactly("x");
 
-      // "x"는 버퍼에 남음
-      assertThat(matcher.getBufferContent()).isEqualTo("x");
+      assertThat(matcher.getBufferSize()).isZero();
     }
   }
 }

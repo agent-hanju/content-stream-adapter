@@ -48,7 +48,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.2'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.4'
 }
 ```
 
@@ -71,7 +71,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.4</version>
 </dependency>
 ```
 
@@ -323,7 +323,16 @@ Issues and Pull Requests are welcome.
 
 ## Changelog
 
-### 0.1.2 (Current)
+### 0.1.4 (Current)
+
+- Fix: Multiple patterns in single token now processed correctly
+- Fix: Non-prefix text after pattern detection now flushed immediately
+
+### 0.1.3
+
+- Fix: CLOSE event now shows the closed path instead of post-transition path
+
+### 0.1.2
 
 - Build: Upgraded to Java 21 (toolchain-based)
 - Build: Updated JUnit 5.10.1 → 5.11.4
