@@ -48,7 +48,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.4'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.5'
 }
 ```
 
@@ -71,7 +71,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
 </dependency>
 ```
 
@@ -168,6 +168,112 @@ for (TaggedToken token : adapter.feedToken("Start <cite>source</cite> end")) {
 ```
 
 이 기능은 섹션 경계 추적, UI 업데이트 트리거, 태그 구조에 대한 메타데이터 수집 등에 유용합니다.
+
+### 속성(Attribute) 지원
+
+XML-like 태그는 속성을 포함할 수 있습니다. `.attr()`을 사용하여 스키마에 허용할 속성을 정의합니다:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite").attr("id", "source")    // id와 source 속성 허용
+    .tag("section").attr("id");          // id 속성만 허용
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+for (TaggedToken token : adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">내용</cite>")) {
+    if ("OPEN".equals(token.event())) {
+        System.out.println("태그 열림: " + token.path());
+        System.out.println("속성: " + token.attributes());
+    } else if (token.event() == null) {
+        System.out.println("[" + token.path() + "] " + token.content());
+    }
+}
+```
+
+**출력:**
+
+```
+태그 열림: /cite
+속성: {id=ref1, source=wiki}
+[/cite] 내용
+```
+
+**속성 필터링:**
+
+스키마에 정의된 속성만 포함됩니다. 정의되지 않은 속성은 조용히 무시됩니다:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite").attr("id");  // "id"만 허용
+
+// source 속성은 무시됨 (스키마에 정의되지 않음)
+adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">내용</cite>");
+// OPEN 이벤트 속성: {id=ref1}  (source는 필터링됨)
+```
+
+**중첩 태그의 속성:**
+
+계층 구조의 각 태그는 자체 허용 속성을 가질 수 있습니다:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("section", section -> section
+        .tag("cite").attr("ref"))    // /section/cite는 "ref" 허용
+    .attr("id");                      // /section은 "id" 허용
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+adapter.feedToken("<section id=\"s1\"><cite ref=\"r1\">텍스트</cite></section>");
+
+// OPEN /section: {id=s1}
+// OPEN /section/cite: {ref=r1}
+```
+
+**속성 파싱 규칙:**
+
+- 속성은 `key="value"` 형식으로 큰따옴표 사용
+- 여러 속성은 공백으로 구분
+- 속성 값에 공백 허용
+- 이스케이프 시퀀스 지원 안 함 (값은 닫는 `"`에서 종료)
+- OPEN 이벤트만 속성 포함 (CLOSE 및 content 토큰은 빈 속성 맵)
+- 속성은 `>` 문자가 감지될 때 파싱됨
+- 스키마에 정의되지 않은 속성은 조용히 무시됨
+
+**토큰 경계 보존:**
+
+- 태그(속성 포함)는 `>`가 발견될 때까지 버퍼링
+- Content 토큰은 원본 경계 보존 (버퍼링 없음)
+- 태그만 버퍼링하고 content는 버퍼링하지 않아 O(n) 복잡도 유지
+
+**스트리밍 예시:**
+
+```java
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+// 속성이 토큰 경계를 넘어 분할될 수 있음
+List<TaggedToken> tokens1 = adapter.feedToken("<cite id=\"re");
+List<TaggedToken> tokens2 = adapter.feedToken("f1\">내용</cite>");
+
+// tokens1: 비어있음 (태그가 아직 완성되지 않음)
+// tokens2: OPEN 이벤트 {id=ref1} 포함, 그 다음 content 토큰
+```
+
+### 원문 접근
+
+`getRaw()`를 사용하여 언제든 누적된 원문 입력을 가져올 수 있습니다:
+
+```java
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+adapter.feedToken("안녕 ");
+adapter.feedToken("<cite id=\"ref1\">");
+adapter.feedToken("내용");
+adapter.feedToken("</cite>");
+
+// 모든 누적된 입력을 원본 그대로 가져오기
+String raw = adapter.getRaw();  // "안녕 <cite id=\"ref1\">내용</cite>"
+```
+
+이 기능은 디버깅, 로깅, 또는 처리되지 않은 원본 입력이 필요할 때 유용합니다.
 
 ### 스트리밍 처리
 
@@ -272,6 +378,7 @@ llmStream.forEach(consumer::accept);
 consumer.end();
 ```
 
+
 ## 아키텍처
 
 ### 핵심 컴포넌트
@@ -291,6 +398,7 @@ consumer.end();
    - `path`: 현재 FSM 경로 (예: "/", "/section", "/section/subsection")
    - `content`: 태그를 제외한 텍스트 내용
    - `event`: 이벤트 타입 ("OPEN", "CLOSE", 또는 일반 콘텐츠일 때 null)
+   - `attributes`: 태그 속성 맵 (OPEN 이벤트에만 값이 있고, 나머지는 빈 맵)
 
 4. **StreamPatternMatcher**: Aho-Corasick 기반 패턴 매칭
 
@@ -307,11 +415,33 @@ consumer.end();
 - **패턴 매칭**: O(n) - Aho-Corasick 알고리즘 (n = 입력 길이)
 - **토큰 처리**: 원본 토큰 경계 보존
 
+## 어떤 Adapter를 사용해야 할까요?
+
+이 라이브러리는 서로 다른 파싱 시나리오를 위한 2개의 어댑터를 제공합니다:
+
+**ContentStreamAdapter (XML-like 스트리밍):**
+- LLM이 **자연어와 XML 태그를 혼합하여 출력**할 때 사용
+- 예시: `"안녕하세요 <think>생각 중</think> 세계 <cite>출처</cite>!"`
+- 스키마 기반 검증: 정의된 태그만 경로로 인식
+- 유효하지 않은 태그는 일반 텍스트로 처리
+- 태그 속성 지원: `<cite id="ref1" source="wiki">내용</cite>`
+- 출력: **TaggedToken** (path + content + event + attributes)
+- **사용 사례**: 구조화된 섹션이 있는 실시간 LLM 스트리밍
+
+**JsonDeltaStreamAdapter (JSON 스트리밍):**
+- 패키지: `me.hanju.jsondelta` ([전체 문서](src/main/java/me/hanju/jsondelta/README.md))
+- 스트리밍 JSON으로부터 **Java 객체**가 필요할 때 사용
+- 예시: `{"choices":[{"delta":{"content":"안녕하세요"}}]}`
+- 도착하는 완전한 JSON 객체를 역직렬화
+- **DeltaMerger**와 함께 사용하도록 설계됨 (점진적 객체 병합)
+- 출력: **타입 지정된 Java 객체** (delta)
+- **사용 사례**: OpenAI/Anthropic 스트리밍 API, delta 누적
+
 ## 제한사항
 
-- 태그 속성은 지원하지 않습니다 (`<tag attr="value">` → `<tag>`로 처리)
 - 자가 닫힘 태그는 지원하지 않습니다 (`<tag/>`)
 - 중첩된 같은 태그는 지원하지 않습니다 (`<a><a></a></a>`)
+- 속성 값에서 이스케이프 시퀀스를 지원하지 않습니다 (단순 `key="value"` 형식만 지원)
 
 ## 라이선스
 
@@ -323,7 +453,15 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 변경 이력
 
-### 0.1.4 (Current)
+### 0.1.5 (Current)
+
+- 기능: `.attr()` 메서드로 스키마 기반 속성 정의
+- 기능: 속성 필터링 - 스키마에 정의된 속성만 포함
+- 기능: `getRaw()` 메서드로 누적된 원문 입력 조회
+- 기능: `flush()` 시 불완전한 태그도 가능한 속성과 함께 OPEN 이벤트 발생
+- 변경: 열린 태그 패턴 매칭이 속성 지원을 위해 `<tagname` 형식(`>` 제외)으로 변경
+
+### 0.1.4
 
 - 수정: 단일 토큰 내 다중 패턴이 올바르게 처리되도록 수정
 - 수정: 패턴 검출 후 prefix가 아닌 텍스트가 즉시 flush되도록 수정

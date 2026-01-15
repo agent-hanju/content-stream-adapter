@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'me.hanju.adapter'
-version = '0.1.4'
+version = '0.1.5'
 
 java {
     toolchain {
@@ -25,6 +25,7 @@ repositories {
 }
 
 dependencies {
+
     // Test dependencies
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -32,6 +33,10 @@ dependencies {
 
     // AssertJ for fluent assertions
     testImplementation 'org.assertj:assertj-core:3.27.6'
+
+    // Jackson for JSON streaming tests
+    testImplementation 'com.fasterxml.jackson.core:jackson-core:2.18.2'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
 }
 
 test {

@@ -2,8 +2,10 @@ package me.hanju.adapter;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import me.hanju.adapter.matcher.AhoCorasickTrie;
@@ -47,14 +49,18 @@ public class ContentStreamAdapter {
 
   private final StreamPatternMatcher patternMatcher;
   private final TransitionTable transitionTable;
+  private final TransitionSchema schema;
 
   private TransitionNode currentState;
+  private StringBuilder pendingTagBuffer = null; // `<tagname` 매칭 후 `>`까지 버퍼링
+  private final StringBuilder rawAccumulator = new StringBuilder(); // 원문 누적
 
   public ContentStreamAdapter(TransitionSchema schema) {
     if (schema == null) {
       throw new IllegalArgumentException("Schema cannot be null");
     }
 
+    this.schema = schema;
     this.transitionTable = new TransitionTable(schema);
     this.currentState = transitionTable.getRoot();
 
@@ -71,53 +77,183 @@ public class ContentStreamAdapter {
       return Collections.emptyList();
     }
 
+    // 원문 누적
+    rawAccumulator.append(token);
+
     List<TaggedToken> tokens = new ArrayList<>();
 
-    for (MatchResult result : patternMatcher.addTokenAndGetResult(token)) {
-      processMatchResult(result, tokens);
+    // pending 태그가 있으면 먼저 처리
+    if (pendingTagBuffer != null) {
+      token = processPendingTag(token, tokens);
+      if (token.isEmpty()) {
+        return tokens;
+      }
     }
+
+    List<MatchResult> matchResults = patternMatcher.addTokenAndGetResult(token);
+    processMatchResults(matchResults, tokens);
 
     return tokens;
   }
 
-  private void processMatchResult(MatchResult result, List<TaggedToken> tokens) {
-    if (result instanceof MatchResult.TokenMatchResult tokenMatch) {
-      for (String t : tokenMatch.tokens()) {
-        if (!t.isEmpty()) {
-          tokens.add(new TaggedToken(currentState.getPath(), t));
-        }
-      }
-    } else if (result instanceof MatchResult.PatternMatchResult patternMatch) {
-      for (String t : patternMatch.prevTokens()) {
-        if (!t.isEmpty()) {
-          tokens.add(new TaggedToken(currentState.getPath(), t));
-        }
-      }
-
-      TagInfo tag = TagInfo.parse(patternMatch.pattern());
-      String pathBeforeTransition = currentState.getPath();
-      boolean transitioned = tryTransition(tag);
-
-      if (transitioned) {
-        // 전이 성공: OPEN 또는 CLOSE 이벤트 추가
-        if (tag.type() == TagType.OPEN) {
-          tokens.add(TaggedToken.openEvent(currentState.getPath()));
+  /**
+   * 매칭 결과들을 처리 (pending 태그 상태 관리 포함)
+   */
+  private void processMatchResults(List<MatchResult> results, List<TaggedToken> tokens) {
+    for (MatchResult result : results) {
+      if (result instanceof MatchResult.TokenMatchResult tokenMatch) {
+        if (pendingTagBuffer != null) {
+          // pending 상태에서 TokenMatch가 오면 pending 버퍼에 추가
+          String combined = String.join("", tokenMatch.tokens());
+          String remaining = processPendingTag(combined, tokens);
+          if (!remaining.isEmpty()) {
+            // '>' 이후 남은 부분 재처리
+            processMatchResults(patternMatcher.addTokenAndGetResult(remaining), tokens);
+          }
         } else {
-          tokens.add(TaggedToken.closeEvent(pathBeforeTransition));
+          for (String t : tokenMatch.tokens()) {
+            if (!t.isEmpty()) {
+              tokens.add(new TaggedToken(currentState.getPath(), t));
+            }
+          }
         }
-      } else {
-        // 전이 실패한 태그는 텍스트로 처리
-        tokens.add(new TaggedToken(currentState.getPath(), patternMatch.pattern()));
+      } else if (result instanceof MatchResult.PatternMatchResult patternMatch) {
+        // prevTokens 처리
+        if (pendingTagBuffer != null) {
+          // pending 상태에서 prevTokens가 오면 pending 버퍼에 추가
+          String combined = String.join("", patternMatch.prevTokens());
+          if (!combined.isEmpty()) {
+            String remaining = processPendingTag(combined, tokens);
+            if (!remaining.isEmpty()) {
+              // '>' 이후 남은 부분은 일반 content로 처리
+              tokens.add(new TaggedToken(currentState.getPath(), remaining));
+            }
+          }
+        } else {
+          for (String t : patternMatch.prevTokens()) {
+            if (!t.isEmpty()) {
+              tokens.add(new TaggedToken(currentState.getPath(), t));
+            }
+          }
+        }
+
+        // 패턴 처리
+        String pattern = patternMatch.pattern();
+
+        if (!pattern.endsWith(">")) {
+          // 열린 태그: '>'까지 버퍼링 필요
+          pendingTagBuffer = new StringBuilder(pattern);
+        } else {
+          // 닫는 태그 처리
+          processCloseTag(pattern, tokens);
+        }
       }
     }
   }
 
   /**
+   * pending 태그 버퍼에 토큰을 추가하고 '>'를 찾아 완성된 태그를 처리
+   *
+   * @return 남은 토큰 (태그 완성 후 남은 부분)
+   */
+  private String processPendingTag(String token, List<TaggedToken> tokens) {
+    int closeIndex = token.indexOf('>');
+
+    if (closeIndex == -1) {
+      // '>'가 없으면 전체를 버퍼에 추가
+      pendingTagBuffer.append(token);
+      return "";
+    }
+
+    // '>'까지 포함하여 태그 완성
+    pendingTagBuffer.append(token, 0, closeIndex + 1);
+    String completeTag = pendingTagBuffer.toString();
+    pendingTagBuffer = null;
+
+    // 완성된 태그 처리
+    processCompleteOpenTag(completeTag, tokens);
+
+    // '>' 이후 남은 부분 반환
+    return token.substring(closeIndex + 1);
+  }
+
+  /**
+   * 완성된 열린 태그 처리 (속성 포함)
+   */
+  private void processCompleteOpenTag(String tagString, List<TaggedToken> tokens) {
+    TagInfo tag = TagInfo.parse(tagString);
+    String pathBeforeTransition = currentState.getPath();
+    boolean transitioned = tryTransition(tag);
+
+    if (transitioned) {
+      // 허용된 attribute만 필터링
+      Map<String, String> filteredAttrs = filterAttributes(currentState.getPath(), tag.attributes());
+      tokens.add(TaggedToken.openEvent(currentState.getPath(), filteredAttrs));
+    } else {
+      // 전이 실패한 태그는 텍스트로 처리
+      tokens.add(new TaggedToken(pathBeforeTransition, tagString));
+    }
+  }
+
+  /**
+   * 닫는 태그 처리
+   */
+  private void processCloseTag(String tagString, List<TaggedToken> tokens) {
+    TagInfo tag = TagInfo.parse(tagString);
+    String pathBeforeTransition = currentState.getPath();
+    boolean transitioned = tryTransition(tag);
+
+    if (transitioned) {
+      tokens.add(TaggedToken.closeEvent(pathBeforeTransition));
+    } else {
+      tokens.add(new TaggedToken(currentState.getPath(), tagString));
+    }
+  }
+
+  /**
+   * 스키마에 정의된 attribute만 필터링
+   */
+  private Map<String, String> filterAttributes(String path, Map<String, String> attributes) {
+    if (attributes.isEmpty()) {
+      return Collections.emptyMap();
+    }
+
+    Set<String> allowed = schema.getAllowedAttributes(path);
+    if (allowed.isEmpty()) {
+      return Collections.emptyMap();
+    }
+
+    Map<String, String> filtered = new HashMap<>();
+    for (Map.Entry<String, String> entry : attributes.entrySet()) {
+      if (allowed.contains(entry.getKey())) {
+        filtered.put(entry.getKey(), entry.getValue());
+      }
+    }
+
+    return filtered.isEmpty() ? Collections.emptyMap() : filtered;
+  }
+
+  /**
    * 남은 버퍼 텍스트를 모두 flush
+   * <p>
+   * 불완전한 열린 태그가 있는 경우 (예: "&lt;cite id=\"ref1\"" - '>'가 없음),
+   * 태그 형식이 유효하면 OPEN 이벤트로 처리합니다.
+   * </p>
    */
   public List<TaggedToken> flush() {
-    List<String> remaining = patternMatcher.flushRemaining();
     List<TaggedToken> tokens = new ArrayList<>();
+
+    // pending 태그가 있으면 불완전한 열린 태그로 처리
+    if (pendingTagBuffer != null) {
+      String incomplete = pendingTagBuffer.toString();
+      pendingTagBuffer = null;
+      if (!incomplete.isEmpty()) {
+        // '>'를 추가하여 완전한 태그로 만들고 처리 시도
+        processCompleteOpenTag(incomplete + ">", tokens);
+      }
+    }
+
+    List<String> remaining = patternMatcher.flushRemaining();
     for (String chunk : remaining) {
       if (!chunk.isEmpty()) {
         tokens.add(new TaggedToken(currentState.getPath(), chunk));
@@ -145,11 +281,18 @@ public class ContentStreamAdapter {
     }
   }
 
+  /**
+   * 패턴 생성: 열린 태그는 `<tagname`까지만, 닫는 태그는 `</tagname>`까지
+   * <p>
+   * 열린 태그는 속성이 올 수 있으므로 `>`를 포함하지 않음.
+   * 매칭 후 `>`까지 버퍼링하여 전체 태그를 파싱함.
+   * </p>
+   */
   private Set<String> generatePatterns(Set<String> tagNames) {
     Set<String> patterns = new HashSet<>();
     for (String tag : tagNames) {
-      patterns.add("<" + tag + ">");
-      patterns.add("</" + tag + ">");
+      patterns.add("<" + tag);      // 열린 태그: <tagname (속성 가능)
+      patterns.add("</" + tag + ">"); // 닫는 태그: </tagname>
     }
     return patterns;
   }
@@ -160,5 +303,14 @@ public class ContentStreamAdapter {
 
   public String getCurrentPath() {
     return currentState.getPath();
+  }
+
+  /**
+   * 지금까지 받은 모든 토큰의 원문을 반환
+   *
+   * @return 누적된 원문 문자열
+   */
+  public String getRaw() {
+    return rawAccumulator.toString();
   }
 }

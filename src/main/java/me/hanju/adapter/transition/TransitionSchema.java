@@ -30,15 +30,18 @@ import java.util.function.Consumer;
 public class TransitionSchema {
   private final String currentPath;
   private final Map<String, List<String>> pathToTags;
+  private final Map<String, Set<String>> pathToAttributes;
   private String lastAddedPath;
 
-  private TransitionSchema(String currentPath, Map<String, List<String>> pathToTags) {
+  private TransitionSchema(String currentPath, Map<String, List<String>> pathToTags,
+      Map<String, Set<String>> pathToAttributes) {
     this.currentPath = currentPath;
     this.pathToTags = pathToTags;
+    this.pathToAttributes = pathToAttributes;
   }
 
   public static TransitionSchema root() {
-    return new TransitionSchema("/", new HashMap<>());
+    return new TransitionSchema("/", new HashMap<>(), new HashMap<>());
   }
 
   /**
@@ -70,10 +73,38 @@ public class TransitionSchema {
     String childPath = buildPath(name);
     pathToTags.put(childPath, new ArrayList<>(List.of(name)));
 
-    TransitionSchema childContext = new TransitionSchema(childPath, pathToTags);
+    TransitionSchema childContext = new TransitionSchema(childPath, pathToTags, pathToAttributes);
     builder.accept(childContext);
 
     lastAddedPath = childPath;
+    return this;
+  }
+
+  /**
+   * 마지막 태그에 허용되는 attribute 추가
+   * <p>
+   * 스키마에 명시되지 않은 attribute는 조용히 무시됩니다.
+   * </p>
+   *
+   * @param attributes 허용할 attribute 이름들
+   * @return this (메서드 체이닝용)
+   */
+  public TransitionSchema attr(String... attributes) {
+    if (lastAddedPath == null) {
+      throw new IllegalStateException("No tag to add attributes to. Call tag() before attr()");
+    }
+    if (attributes == null || attributes.length == 0) {
+      throw new IllegalArgumentException("At least one attribute must be provided");
+    }
+
+    Set<String> attrSet = pathToAttributes.computeIfAbsent(lastAddedPath, k -> new HashSet<>());
+    for (String attrName : attributes) {
+      if (attrName == null || attrName.isEmpty()) {
+        throw new IllegalArgumentException("Attribute name cannot be null or empty");
+      }
+      attrSet.add(attrName);
+    }
+
     return this;
   }
 
@@ -117,6 +148,30 @@ public class TransitionSchema {
       allTags.addAll(tags);
     }
     return Collections.unmodifiableSet(allTags);
+  }
+
+  /**
+   * 특정 경로에 허용된 attribute 이름 집합 반환
+   *
+   * @param path 태그 경로
+   * @return 허용된 attribute 이름 집합 (없으면 빈 집합)
+   */
+  public Set<String> getAllowedAttributes(String path) {
+    Set<String> attrs = pathToAttributes.get(path);
+    return attrs != null ? Collections.unmodifiableSet(attrs) : Collections.emptySet();
+  }
+
+  /**
+   * 경로별 허용 attribute 맵 반환
+   *
+   * @return 경로 → 허용 attribute 집합 맵
+   */
+  public Map<String, Set<String>> getPathToAttributesMapping() {
+    Map<String, Set<String>> result = new HashMap<>();
+    for (Map.Entry<String, Set<String>> entry : pathToAttributes.entrySet()) {
+      result.put(entry.getKey(), new HashSet<>(entry.getValue()));
+    }
+    return Collections.unmodifiableMap(result);
   }
 
   private String buildPath(String tagName) {

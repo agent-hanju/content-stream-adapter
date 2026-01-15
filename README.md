@@ -48,7 +48,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.4'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.5'
 }
 ```
 
@@ -71,7 +71,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
 </dependency>
 ```
 
@@ -168,6 +168,112 @@ Tag closed: /cite
 ```
 
 This is useful for tracking section boundaries, triggering UI updates, or collecting metadata about tag structure.
+
+### Attribute Support
+
+XML-like tags can include attributes. Define allowed attributes in the schema using `.attr()`:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite").attr("id", "source")    // Allow id and source attributes
+    .tag("section").attr("id");          // Allow only id attribute
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+for (TaggedToken token : adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">content</cite>")) {
+    if ("OPEN".equals(token.event())) {
+        System.out.println("Tag opened: " + token.path());
+        System.out.println("Attributes: " + token.attributes());
+    } else if (token.event() == null) {
+        System.out.println("[" + token.path() + "] " + token.content());
+    }
+}
+```
+
+**Output:**
+
+```
+Tag opened: /cite
+Attributes: {id=ref1, source=wiki}
+[/cite] content
+```
+
+**Attribute Filtering:**
+
+Only attributes defined in the schema are included. Undefined attributes are silently ignored:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite").attr("id");  // Only "id" is allowed
+
+// source attribute will be ignored (not defined in schema)
+adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">content</cite>");
+// OPEN event attributes: {id=ref1}  (source is filtered out)
+```
+
+**Nested Tags with Attributes:**
+
+Each tag in a hierarchy can have its own allowed attributes:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("section", section -> section
+        .tag("cite").attr("ref"))    // /section/cite allows "ref"
+    .attr("id");                      // /section allows "id"
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+adapter.feedToken("<section id=\"s1\"><cite ref=\"r1\">text</cite></section>");
+
+// OPEN /section: {id=s1}
+// OPEN /section/cite: {ref=r1}
+```
+
+**Attribute Parsing Rules:**
+
+- Attributes use `key="value"` format with double quotes
+- Multiple attributes separated by spaces
+- Spaces allowed in attribute values
+- Escape sequences not supported (values end at closing `"`)
+- Only OPEN events include attributes (CLOSE and content tokens have empty attribute maps)
+- Attributes are parsed when the `>` character is detected
+- Schema-undefined attributes are silently ignored
+
+**Token Boundary Preservation:**
+
+- Tags (including attributes) are buffered until `>` is found
+- Content tokens preserve original boundaries (no buffering)
+- O(n) complexity maintained by buffering only tags, not content
+
+**Example with Streaming:**
+
+```java
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+// Attributes can be split across tokens
+List<TaggedToken> tokens1 = adapter.feedToken("<cite id=\"re");
+List<TaggedToken> tokens2 = adapter.feedToken("f1\">content</cite>");
+
+// tokens1: empty (tag not yet complete)
+// tokens2: OPEN event with {id=ref1}, then content token
+```
+
+### Raw Input Access
+
+Retrieve the accumulated raw input at any time using `getRaw()`:
+
+```java
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+adapter.feedToken("Hello ");
+adapter.feedToken("<cite id=\"ref1\">");
+adapter.feedToken("content");
+adapter.feedToken("</cite>");
+
+// Get all accumulated input as-is
+String raw = adapter.getRaw();  // "Hello <cite id=\"ref1\">content</cite>"
+```
+
+This is useful for debugging, logging, or when you need the original unprocessed input.
 
 ### Streaming Processing
 
@@ -272,6 +378,7 @@ llmStream.forEach(consumer::accept);
 consumer.end();
 ```
 
+
 ## Architecture
 
 ### Core Components
@@ -291,6 +398,7 @@ consumer.end();
    - `path`: Current FSM path (e.g., "/", "/section", "/section/subsection")
    - `content`: Text content excluding tags
    - `event`: Event type ("OPEN", "CLOSE", or null for regular content)
+   - `attributes`: Map of tag attributes (populated for OPEN events, empty otherwise)
 
 4. **StreamPatternMatcher**: Aho-Corasick based pattern matching
 
@@ -307,11 +415,33 @@ consumer.end();
 - **Pattern Matching**: O(n) - Aho-Corasick algorithm (n = input length)
 - **Token Processing**: Preserves original token boundaries
 
+## When to Use Which Adapter?
+
+This library provides 2 adapters for different parsing scenarios:
+
+**ContentStreamAdapter (XML-like Streaming):**
+- Use when LLM outputs **natural language mixed with XML tags**
+- Example: `"Hello <think>reasoning here</think> world <cite>source</cite>!"`
+- Schema-based validation: only defined tags are recognized as paths
+- Invalid tags are treated as plain text
+- Supports tag attributes: `<cite id="ref1" source="wiki">content</cite>`
+- Output: **TaggedToken** (path + content + event + attributes)
+- **Use case**: Real-time LLM streaming with structured sections
+
+**JsonDeltaStreamAdapter (JSON Streaming):**
+- Package: `me.hanju.jsondelta` ([Full Documentation](src/main/java/me/hanju/jsondelta/README.md))
+- Use when you need **Java objects** from streaming JSON
+- Example: `{"choices":[{"delta":{"content":"Hello"}}]}`
+- Deserializes complete JSON objects as they arrive
+- Designed for use with **DeltaMerger** (incremental object merging)
+- Output: **Typed Java objects** (deltas)
+- **Use case**: OpenAI/Anthropic streaming APIs, delta accumulation
+
 ## Limitations
 
-- No support for tag attributes (`<tag attr="value">` → treated as `<tag>`)
 - No support for self-closing tags (`<tag/>`)
 - No support for nested identical tags (`<a><a></a></a>`)
+- Attribute values do not support escape sequences (simple `key="value"` format only)
 
 ## License
 
@@ -323,7 +453,15 @@ Issues and Pull Requests are welcome.
 
 ## Changelog
 
-### 0.1.4 (Current)
+### 0.1.5 (Current)
+
+- Feature: Schema-based attribute definition with `.attr()` method
+- Feature: Attribute filtering - only schema-defined attributes are included
+- Feature: `getRaw()` method to retrieve accumulated raw input
+- Feature: Incomplete tags emit OPEN events on `flush()` with available attributes
+- Change: Open tag pattern matching now uses `<tagname` (without `>`) to support attributes
+
+### 0.1.4
 
 - Fix: Multiple patterns in single token now processed correctly
 - Fix: Non-prefix text after pattern detection now flushed immediately
