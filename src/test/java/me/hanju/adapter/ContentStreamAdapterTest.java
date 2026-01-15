@@ -735,4 +735,159 @@ class ContentStreamAdapterTest {
       // 이는 StreamPatternMatcher의 TextChunks에 의해 보장됨
     }
   }
+
+  // ==================== 9. 복합 토큰 경계 케이스 ====================
+
+  @Nested
+  @DisplayName("복합 토큰 경계 케이스")
+  class ComplexTokenBoundaryEdgeCases {
+
+    @Test
+    @DisplayName("한 토큰에 여러 패턴 + 다음 패턴 prefix 포함")
+    void testMultiplePatternsAndPrefixInSingleToken() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite", cite -> cite
+              .tag("id"));
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> allTokens = new ArrayList<>();
+
+      // 한 토큰에 <cite>, <id>, content, </id의 prefix가 모두 포함
+      allTokens.addAll(adapter.feedToken("<cite><id>ref</i"));
+      allTokens.addAll(adapter.feedToken("d>text</cite>"));
+
+      List<TaggedToken> events = allTokens.stream()
+          .filter(t -> t.event() != null)
+          .toList();
+
+      // OPEN cite, OPEN id, CLOSE id, CLOSE cite
+      assertThat(events).hasSize(4);
+      assertThat(events.get(0).path()).isEqualTo("/cite");
+      assertThat(events.get(0).event()).isEqualTo("OPEN");
+      assertThat(events.get(1).path()).isEqualTo("/cite/id");
+      assertThat(events.get(1).event()).isEqualTo("OPEN");
+      assertThat(events.get(2).path()).isEqualTo("/cite/id");
+      assertThat(events.get(2).event()).isEqualTo("CLOSE");
+      assertThat(events.get(3).path()).isEqualTo("/cite");
+      assertThat(events.get(3).event()).isEqualTo("CLOSE");
+
+      // content 검증
+      List<TaggedToken> contents = allTokens.stream()
+          .filter(t -> t.event() == null)
+          .toList();
+      assertThat(contents).hasSize(2);
+      assertThat(contents.get(0).path()).isEqualTo("/cite/id");
+      assertThat(contents.get(0).content()).isEqualTo("ref");
+      assertThat(contents.get(1).path()).isEqualTo("/cite");
+      assertThat(contents.get(1).content()).isEqualTo("text");
+    }
+
+    @Test
+    @DisplayName("닫는 태그가 두 토큰에 걸쳐 분리 - </i + d>")
+    void testCloseTagSplitAcrossTwoTokens() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite", cite -> cite
+              .tag("id"));
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> allTokens = new ArrayList<>();
+
+      allTokens.addAll(adapter.feedToken("<cite><id>123</i"));
+      allTokens.addAll(adapter.feedToken("d>텍스트</ci"));
+      allTokens.addAll(adapter.feedToken("te>"));
+
+      List<TaggedToken> events = allTokens.stream()
+          .filter(t -> t.event() != null)
+          .toList();
+
+      assertThat(events).hasSize(4);
+      assertThat(events.get(2).path()).isEqualTo("/cite/id");
+      assertThat(events.get(2).event()).isEqualTo("CLOSE");
+      assertThat(events.get(3).path()).isEqualTo("/cite");
+      assertThat(events.get(3).event()).isEqualTo("CLOSE");
+
+      assertThat(adapter.getCurrentPath()).isEqualTo("/");
+    }
+
+    @Test
+    @DisplayName("열린 태그 pending 상태에서 다양한 후속 입력")
+    void testPendingOpenTagWithVariousFollowups() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite", cite -> cite
+              .tag("id"));
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> allTokens = new ArrayList<>();
+
+      // <cite 패턴 매칭 → pending 상태
+      allTokens.addAll(adapter.feedToken("<cite"));
+
+      // 속성 + > + 내용 + 중첩 태그
+      allTokens.addAll(adapter.feedToken(" type=\"ref\">content<id>"));
+      allTokens.addAll(adapter.feedToken("123</id></cite>"));
+
+      List<TaggedToken> events = allTokens.stream()
+          .filter(t -> t.event() != null)
+          .toList();
+
+      assertThat(events).hasSize(4);
+      assertThat(adapter.getCurrentPath()).isEqualTo("/");
+    }
+
+    @Test
+    @DisplayName("연속된 태그가 토큰 경계에서 분리")
+    void testConsecutiveTagsSplitAtBoundary() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("a")
+          .tag("b");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> allTokens = new ArrayList<>();
+
+      // </a><b 가 한 토큰에
+      allTokens.addAll(adapter.feedToken("<a>content</a><b"));
+      allTokens.addAll(adapter.feedToken(">more</b>"));
+
+      List<TaggedToken> events = allTokens.stream()
+          .filter(t -> t.event() != null)
+          .toList();
+
+      // OPEN a, CLOSE a, OPEN b, CLOSE b
+      assertThat(events).hasSize(4);
+      assertThat(events.get(0).path()).isEqualTo("/a");
+      assertThat(events.get(0).event()).isEqualTo("OPEN");
+      assertThat(events.get(1).path()).isEqualTo("/a");
+      assertThat(events.get(1).event()).isEqualTo("CLOSE");
+      assertThat(events.get(2).path()).isEqualTo("/b");
+      assertThat(events.get(2).event()).isEqualTo("OPEN");
+      assertThat(events.get(3).path()).isEqualTo("/b");
+      assertThat(events.get(3).event()).isEqualTo("CLOSE");
+    }
+
+    @Test
+    @DisplayName("극단적 분리 - 태그가 한 글자씩 분리")
+    void testExtremeTokenSplitting() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("id");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> allTokens = new ArrayList<>();
+
+      // </id>를 한 글자씩 분리
+      allTokens.addAll(adapter.feedToken("<id>test<"));
+      allTokens.addAll(adapter.feedToken("/"));
+      allTokens.addAll(adapter.feedToken("i"));
+      allTokens.addAll(adapter.feedToken("d"));
+      allTokens.addAll(adapter.feedToken(">"));
+
+      List<TaggedToken> events = allTokens.stream()
+          .filter(t -> t.event() != null)
+          .toList();
+
+      assertThat(events).hasSize(2);
+      assertThat(events.get(0).event()).isEqualTo("OPEN");
+      assertThat(events.get(1).event()).isEqualTo("CLOSE");
+      assertThat(adapter.getCurrentPath()).isEqualTo("/");
+    }
+  }
 }

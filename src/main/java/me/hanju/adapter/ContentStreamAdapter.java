@@ -107,8 +107,9 @@ public class ContentStreamAdapter {
           String combined = String.join("", tokenMatch.tokens());
           String remaining = processPendingTag(combined, tokens);
           if (!remaining.isEmpty()) {
-            // '>' 이후 남은 부분 재처리
-            processMatchResults(patternMatcher.addTokenAndGetResult(remaining), tokens);
+            // '>' 이후 남은 부분은 일반 content로 처리
+            // (TokenMatchResult는 이미 "안전한 텍스트"로 판단된 것이므로)
+            tokens.add(new TaggedToken(currentState.getPath(), remaining));
           }
         } else {
           for (String t : tokenMatch.tokens()) {
@@ -125,8 +126,8 @@ public class ContentStreamAdapter {
           if (!combined.isEmpty()) {
             String remaining = processPendingTag(combined, tokens);
             if (!remaining.isEmpty()) {
-              // '>' 이후 남은 부분은 일반 content로 처리
-              tokens.add(new TaggedToken(currentState.getPath(), remaining));
+              // '>' 이후 남은 부분 재처리 (패턴 매칭 포함)
+              processMatchResults(patternMatcher.addTokenAndGetResult(remaining), tokens);
             }
           }
         } else {
