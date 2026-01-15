@@ -42,7 +42,7 @@ public record TagInfo(String name, TagType type, Map<String, String> attributes)
 
     boolean isClosing = tagString.startsWith("</");
 
-    int tagEnd = tagString.indexOf('>');
+    int tagEnd = findTagEnd(tagString);
     if (tagEnd == -1) {
       tagEnd = tagString.length();
     }
@@ -71,6 +71,29 @@ public record TagInfo(String name, TagType type, Map<String, String> attributes)
     }
 
     return new TagInfo(tagName, isClosing ? TagType.CLOSE : TagType.OPEN, attributes);
+  }
+
+  /**
+   * 태그 끝 '>'를 찾습니다. 따옴표 안의 '>'는 무시합니다.
+   */
+  private static int findTagEnd(String tagString) {
+    boolean inQuote = false;
+    char quoteChar = 0;
+
+    for (int i = 0; i < tagString.length(); i++) {
+      char c = tagString.charAt(i);
+      if (!inQuote && (c == '"' || c == '\'')) {
+        inQuote = true;
+        quoteChar = c;
+      } else if (inQuote && c == quoteChar) {
+        inQuote = false;
+        quoteChar = 0;
+      } else if (!inQuote && c == '>') {
+        return i;
+      }
+    }
+
+    return -1;
   }
 
   /**

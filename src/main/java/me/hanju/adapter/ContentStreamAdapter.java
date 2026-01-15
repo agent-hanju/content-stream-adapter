@@ -126,8 +126,9 @@ public class ContentStreamAdapter {
           if (!combined.isEmpty()) {
             String remaining = processPendingTag(combined, tokens);
             if (!remaining.isEmpty()) {
-              // '>' 이후 남은 부분 재처리 (패턴 매칭 포함)
-              processMatchResults(patternMatcher.addTokenAndGetResult(remaining), tokens);
+              // '>' 이후 남은 부분은 일반 content로 처리
+              // (prevTokens는 이미 StreamPatternMatcher 버퍼에서 추출된 것이므로)
+              tokens.add(new TaggedToken(currentState.getPath(), remaining));
             }
           }
         } else {
@@ -154,11 +155,12 @@ public class ContentStreamAdapter {
 
   /**
    * pending 태그 버퍼에 토큰을 추가하고 '>'를 찾아 완성된 태그를 처리
+   * 따옴표 안의 '>'는 무시합니다.
    *
    * @return 남은 토큰 (태그 완성 후 남은 부분)
    */
   private String processPendingTag(String token, List<TaggedToken> tokens) {
-    int closeIndex = token.indexOf('>');
+    int closeIndex = findTagCloseIndex(pendingTagBuffer.toString(), token);
 
     if (closeIndex == -1) {
       // '>'가 없으면 전체를 버퍼에 추가
@@ -176,6 +178,47 @@ public class ContentStreamAdapter {
 
     // '>' 이후 남은 부분 반환
     return token.substring(closeIndex + 1);
+  }
+
+  /**
+   * 태그를 닫는 '>' 위치를 찾습니다.
+   * 따옴표 안의 '>'는 무시합니다.
+   *
+   * @param buffer 현재까지의 pending 버퍼 내용
+   * @param token 새로 들어온 토큰
+   * @return token 내에서 태그를 닫는 '>' 위치, 없으면 -1
+   */
+  private int findTagCloseIndex(String buffer, String token) {
+    // 버퍼에서 따옴표 상태 계산
+    boolean inQuote = false;
+    char quoteChar = 0;
+
+    for (int i = 0; i < buffer.length(); i++) {
+      char c = buffer.charAt(i);
+      if (!inQuote && (c == '"' || c == '\'')) {
+        inQuote = true;
+        quoteChar = c;
+      } else if (inQuote && c == quoteChar) {
+        inQuote = false;
+        quoteChar = 0;
+      }
+    }
+
+    // 토큰에서 '>' 찾기 (따옴표 상태 유지)
+    for (int i = 0; i < token.length(); i++) {
+      char c = token.charAt(i);
+      if (!inQuote && (c == '"' || c == '\'')) {
+        inQuote = true;
+        quoteChar = c;
+      } else if (inQuote && c == quoteChar) {
+        inQuote = false;
+        quoteChar = 0;
+      } else if (!inQuote && c == '>') {
+        return i;
+      }
+    }
+
+    return -1;
   }
 
   /**
