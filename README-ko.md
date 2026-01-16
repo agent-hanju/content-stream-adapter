@@ -48,7 +48,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.4'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.5'
 }
 ```
 
@@ -71,7 +71,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
 </dependency>
 ```
 
@@ -168,6 +168,24 @@ for (TaggedToken token : adapter.feedToken("Start <cite>source</cite> end")) {
 ```
 
 이 기능은 섹션 경계 추적, UI 업데이트 트리거, 태그 구조에 대한 메타데이터 수집 등에 유용합니다.
+
+### 원문 접근
+
+`getRaw()`를 사용하여 언제든 누적된 원문 입력을 가져올 수 있습니다:
+
+```java
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+adapter.feedToken("안녕 ");
+adapter.feedToken("<cite>");
+adapter.feedToken("내용");
+adapter.feedToken("</cite>");
+
+// 모든 누적된 입력을 원본 그대로 가져오기
+String raw = adapter.getRaw();  // "안녕 <cite>내용</cite>"
+```
+
+이 기능은 디버깅, 로깅, 또는 처리되지 않은 원본 입력이 필요할 때 유용합니다.
 
 ### 스트리밍 처리
 
@@ -323,7 +341,11 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 변경 이력
 
-### 0.1.4 (Current)
+### 0.1.5 (Current)
+
+- 기능: `getRaw()` 메서드로 누적된 원문 입력 조회
+
+### 0.1.4
 
 - 수정: 단일 토큰 내 다중 패턴이 올바르게 처리되도록 수정
 - 수정: 패턴 검출 후 prefix가 아닌 텍스트가 즉시 flush되도록 수정

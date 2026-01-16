@@ -48,7 +48,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.4'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.5'
 }
 ```
 
@@ -71,7 +71,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
 </dependency>
 ```
 
@@ -168,6 +168,24 @@ Tag closed: /cite
 ```
 
 This is useful for tracking section boundaries, triggering UI updates, or collecting metadata about tag structure.
+
+### Raw Input Access
+
+Retrieve the accumulated raw input at any time using `getRaw()`:
+
+```java
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+adapter.feedToken("Hello ");
+adapter.feedToken("<cite>");
+adapter.feedToken("content");
+adapter.feedToken("</cite>");
+
+// Get all accumulated input as-is
+String raw = adapter.getRaw();  // "Hello <cite>content</cite>"
+```
+
+This is useful for debugging, logging, or when you need the original unprocessed input.
 
 ### Streaming Processing
 
@@ -323,7 +341,11 @@ Issues and Pull Requests are welcome.
 
 ## Changelog
 
-### 0.1.4 (Current)
+### 0.1.5 (Current)
+
+- Feature: `getRaw()` method to retrieve accumulated raw input
+
+### 0.1.4
 
 - Fix: Multiple patterns in single token now processed correctly
 - Fix: Non-prefix text after pattern detection now flushed immediately

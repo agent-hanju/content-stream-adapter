@@ -735,4 +735,85 @@ class ContentStreamAdapterTest {
       // 이는 StreamPatternMatcher의 TextChunks에 의해 보장됨
     }
   }
+
+  // ==================== 9. getRaw() 테스트 ====================
+
+  @Nested
+  @DisplayName("getRaw() - 원문 누적")
+  class GetRawTests {
+
+    @Test
+    @DisplayName("단순 텍스트 누적")
+    void testSimpleTextAccumulation() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("test");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      adapter.feedToken("Hello ");
+      adapter.feedToken("World");
+
+      assertThat(adapter.getRaw()).isEqualTo("Hello World");
+    }
+
+    @Test
+    @DisplayName("태그 포함 원문 누적")
+    void testRawWithTags() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      adapter.feedToken("안녕 ");
+      adapter.feedToken("<cite>");
+      adapter.feedToken("출처");
+      adapter.feedToken("</cite>");
+      adapter.feedToken(" 세계");
+
+      assertThat(adapter.getRaw()).isEqualTo("안녕 <cite>출처</cite> 세계");
+    }
+
+    @Test
+    @DisplayName("빈 토큰은 누적되지 않음")
+    void testEmptyTokensNotAccumulated() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("test");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      adapter.feedToken("Hello");
+      adapter.feedToken("");
+      adapter.feedToken(null);
+      adapter.feedToken("World");
+
+      assertThat(adapter.getRaw()).isEqualTo("HelloWorld");
+    }
+
+    @Test
+    @DisplayName("초기 상태에서 빈 문자열 반환")
+    void testInitialStateReturnsEmpty() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("test");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      assertThat(adapter.getRaw()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("스트리밍 시나리오 - 점진적 누적")
+    void testStreamingAccumulation() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("think");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      adapter.feedToken("<th");
+      assertThat(adapter.getRaw()).isEqualTo("<th");
+
+      adapter.feedToken("ink>");
+      assertThat(adapter.getRaw()).isEqualTo("<think>");
+
+      adapter.feedToken("reasoning");
+      assertThat(adapter.getRaw()).isEqualTo("<think>reasoning");
+
+      adapter.feedToken("</think>");
+      assertThat(adapter.getRaw()).isEqualTo("<think>reasoning</think>");
+    }
+  }
 }

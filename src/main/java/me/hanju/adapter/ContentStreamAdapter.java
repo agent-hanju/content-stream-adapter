@@ -49,6 +49,7 @@ public class ContentStreamAdapter {
   private final TransitionTable transitionTable;
 
   private TransitionNode currentState;
+  private final StringBuilder rawAccumulator = new StringBuilder();
 
   public ContentStreamAdapter(TransitionSchema schema) {
     if (schema == null) {
@@ -70,6 +71,8 @@ public class ContentStreamAdapter {
     if (token == null || token.isEmpty()) {
       return Collections.emptyList();
     }
+
+    rawAccumulator.append(token);
 
     List<TaggedToken> tokens = new ArrayList<>();
 
@@ -160,5 +163,14 @@ public class ContentStreamAdapter {
 
   public String getCurrentPath() {
     return currentState.getPath();
+  }
+
+  /**
+   * 지금까지 받은 모든 토큰의 원문을 반환
+   *
+   * @return 누적된 원문 문자열
+   */
+  public String getRaw() {
+    return rawAccumulator.toString();
   }
 }
