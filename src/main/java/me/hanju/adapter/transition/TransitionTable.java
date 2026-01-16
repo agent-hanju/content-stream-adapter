@@ -14,6 +14,7 @@ import java.util.Set;
 public class TransitionTable {
   private final TransitionNode root;
   private final Set<String> allTagNames;
+  private final Map<String, Set<String>> pathToAttributes;
 
   public TransitionTable(TransitionSchema schema) {
     if (schema == null) {
@@ -23,6 +24,7 @@ public class TransitionTable {
     Map<String, List<String>> pathToTags = schema.getPathToTagsMapping();
     this.root = buildTree(pathToTags);
     this.allTagNames = Collections.unmodifiableSet(schema.getAllTagNames());
+    this.pathToAttributes = schema.getPathToAttributesMapping();
   }
 
   private TransitionNode buildTree(Map<String, List<String>> pathToTags) {
@@ -127,6 +129,11 @@ public class TransitionTable {
 
   public Set<String> getAllTagNames() {
     return allTagNames;
+  }
+
+  public Set<String> getAllowedAttributes(String path) {
+    Set<String> attrs = pathToAttributes.get(path);
+    return attrs != null ? attrs : Collections.emptySet();
   }
 
 }

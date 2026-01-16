@@ -18,6 +18,7 @@ ContentStreamAdapter parses XML-like sectioned text that arrives token-by-token 
 - **Aho-Corasick Algorithm**: O(n) multi-pattern matching
 - **Multi-depth Path Support**: Hierarchical structures like `/section/subsection/content`
 - **Alias Support**: Map multiple tag names to the same path
+- **Attribute Support**: Parse and filter tag attributes (e.g., `<cite id="ref">`)
 - **Fault-tolerant**: Unrecognized or invalid transitions output as text
 
 ## Requirements
@@ -48,7 +49,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.5'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.6'
 }
 ```
 
@@ -71,7 +72,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.5</version>
+    <version>0.1.6</version>
 </dependency>
 ```
 
@@ -133,6 +134,34 @@ ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
 adapter.feedToken("Reference: <cite>source1</cite>");
 adapter.feedToken("RAG: <rag>source2</rag>");
 ```
+
+### Attribute Support
+
+Parse tag attributes and filter them through schema-defined allowed attributes:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite").attr("id", "source")   // Allow only "id" and "source" attributes
+    .tag("think");
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+for (TaggedToken token : adapter.feedToken("<cite id=\"ref1\" source=\"wiki\" extra=\"ignored\">content</cite>")) {
+    if ("OPEN".equals(token.event())) {
+        // token.attributes() contains only allowed attributes: {id: "ref1", source: "wiki"}
+        // "extra" is filtered out
+        System.out.println("Cite opened with: " + token.attributes());
+    }
+}
+```
+
+**Key behaviors:**
+
+- Attributes are parsed from open tags (e.g., `<cite id="ref">`)
+- Only schema-defined attributes are included in the output
+- Attributes support both double and single quotes
+- Incomplete attributes (unclosed quotes) are ignored on flush
+- Tags without defined attributes have empty `attributes()` map
 
 ### Event Handling
 
@@ -302,13 +331,15 @@ consumer.end();
 2. **TransitionSchema**: Hierarchical tag schema builder
 
    - Fluent API for intuitive schema definition
-   - Alias support
+   - Alias support (`.alias()`)
+   - Attribute whitelist (`.attr()`)
 
 3. **TaggedToken**: Output token (record)
 
    - `path`: Current FSM path (e.g., "/", "/section", "/section/subsection")
    - `content`: Text content excluding tags
    - `event`: Event type ("OPEN", "CLOSE", or null for regular content)
+   - `attributes`: Filtered attribute map (OPEN event only)
 
 4. **StreamPatternMatcher**: Aho-Corasick based pattern matching
 
@@ -318,6 +349,12 @@ consumer.end();
 5. **TransitionTable**: State transition table
    - O(1) transitions using TransitionNode tree
    - Alias support
+   - Attribute whitelist lookup
+
+6. **OpenTagParser**: Streaming open tag parser
+   - State machine-based attribute parsing
+   - Handles quotes spanning multiple tokens
+   - Supports both single and double quotes
 
 ## Performance Characteristics
 
@@ -327,7 +364,6 @@ consumer.end();
 
 ## Limitations
 
-- No support for tag attributes (`<tag attr="value">` → treated as `<tag>`)
 - No support for self-closing tags (`<tag/>`)
 - No support for nested identical tags (`<a><a></a></a>`)
 
@@ -341,7 +377,15 @@ Issues and Pull Requests are welcome.
 
 ## Changelog
 
-### 0.1.5 (Current)
+### 0.1.6 (Current)
+
+- Feature: Tag attribute parsing support (`<cite id="ref">`)
+- Feature: Schema-based attribute whitelist (`.attr("id", "source")`)
+- Feature: `TaggedToken.attributes()` for accessing parsed attributes
+- Architecture: `OpenTagParser` for streaming attribute parsing with state machine
+- Architecture: `TransitionTable.getAllowedAttributes()` for attribute filtering
+
+### 0.1.5
 
 - Feature: `getRaw()` method to retrieve accumulated raw input
 

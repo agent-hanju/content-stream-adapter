@@ -816,4 +816,174 @@ class ContentStreamAdapterTest {
       assertThat(adapter.getRaw()).isEqualTo("<think>reasoning</think>");
     }
   }
+
+  // ==================== 10. 속성(Attribute) 지원 ====================
+
+  @Nested
+  @DisplayName("속성 지원")
+  class AttributeSupport {
+
+    @Test
+    @DisplayName("속성 있는 태그 - 한 번에 전송")
+    void testTagWithAttributes() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("id", "source");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> tokens = adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">content</cite>");
+      tokens.addAll(adapter.flush());
+
+      assertThat(tokens).hasSize(3);
+
+      // OPEN 이벤트 with attributes
+      assertThat(tokens.get(0).event()).isEqualTo("OPEN");
+      assertThat(tokens.get(0).path()).isEqualTo("/cite");
+      assertThat(tokens.get(0).attributes()).containsEntry("id", "ref1");
+      assertThat(tokens.get(0).attributes()).containsEntry("source", "wiki");
+
+      // content
+      assertThat(tokens.get(1).path()).isEqualTo("/cite");
+      assertThat(tokens.get(1).content()).isEqualTo("content");
+
+      // CLOSE 이벤트
+      assertThat(tokens.get(2).event()).isEqualTo("CLOSE");
+    }
+
+    @Test
+    @DisplayName("속성이 스키마에 정의되지 않으면 필터링됨")
+    void testAttributeFiltering() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("id");  // source는 허용 안 함
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> tokens = adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">x</cite>");
+      tokens.addAll(adapter.flush());
+
+      // id만 포함, source는 필터링됨
+      assertThat(tokens.get(0).attributes()).containsEntry("id", "ref1");
+      assertThat(tokens.get(0).attributes()).doesNotContainKey("source");
+    }
+
+    @Test
+    @DisplayName("속성 없는 태그도 정상 동작")
+    void testTagWithoutAttributes() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("id");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> tokens = adapter.feedToken("<cite>content</cite>");
+      tokens.addAll(adapter.flush());
+
+      assertThat(tokens.get(0).event()).isEqualTo("OPEN");
+      assertThat(tokens.get(0).attributes()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("속성값에 > 포함")
+    void testAttributeWithGreaterThan() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("expr");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> tokens = adapter.feedToken("<cite expr=\"a>b\">content</cite>");
+      tokens.addAll(adapter.flush());
+
+      assertThat(tokens.get(0).event()).isEqualTo("OPEN");
+      assertThat(tokens.get(0).attributes()).containsEntry("expr", "a>b");
+      assertThat(tokens.get(1).content()).isEqualTo("content");
+    }
+
+    @Test
+    @DisplayName("속성이 토큰 경계에 걸침")
+    void testAttributeSplitAcrossTokens() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("id");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> allTokens = new ArrayList<>();
+      allTokens.addAll(adapter.feedToken("<cite id=\"ref"));
+      allTokens.addAll(adapter.feedToken("1\">content</cite>"));
+      allTokens.addAll(adapter.flush());
+
+      assertThat(allTokens.get(0).event()).isEqualTo("OPEN");
+      assertThat(allTokens.get(0).attributes()).containsEntry("id", "ref1");
+    }
+
+    @Test
+    @DisplayName("> 가 속성값 내에서 토큰 경계에 걸침")
+    void testGreaterThanInAttributeSplit() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("expr");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> allTokens = new ArrayList<>();
+      allTokens.addAll(adapter.feedToken("<cite expr=\"a>"));
+      allTokens.addAll(adapter.feedToken("b\">content</cite>"));
+      allTokens.addAll(adapter.flush());
+
+      assertThat(allTokens.get(0).event()).isEqualTo("OPEN");
+      assertThat(allTokens.get(0).attributes()).containsEntry("expr", "a>b");
+    }
+
+    @Test
+    @DisplayName("여러 속성이 여러 토큰에 걸침")
+    void testMultipleAttributesSplit() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("id", "source");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> allTokens = new ArrayList<>();
+      allTokens.addAll(adapter.feedToken("<cite id="));
+      allTokens.addAll(adapter.feedToken("\"ref1\" "));
+      allTokens.addAll(adapter.feedToken("source=\"wiki\">"));
+      allTokens.addAll(adapter.feedToken("content</cite>"));
+      allTokens.addAll(adapter.flush());
+
+      assertThat(allTokens.get(0).event()).isEqualTo("OPEN");
+      assertThat(allTokens.get(0).attributes()).containsEntry("id", "ref1");
+      assertThat(allTokens.get(0).attributes()).containsEntry("source", "wiki");
+    }
+
+    @Test
+    @DisplayName("작은따옴표 속성")
+    void testSingleQuoteAttribute() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("id");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> tokens = adapter.feedToken("<cite id='ref1'>content</cite>");
+      tokens.addAll(adapter.flush());
+
+      assertThat(tokens.get(0).attributes()).containsEntry("id", "ref1");
+    }
+
+    @Test
+    @DisplayName("스키마에 attr 정의 안 하면 모든 속성 필터링")
+    void testNoAttrDefinedFiltersAll() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite");  // attr 없음
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      List<TaggedToken> tokens = adapter.feedToken("<cite id=\"ref1\">content</cite>");
+      tokens.addAll(adapter.flush());
+
+      assertThat(tokens.get(0).event()).isEqualTo("OPEN");
+      assertThat(tokens.get(0).attributes()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("flush로 불완전한 태그 완성")
+    void testFlushIncompletaTag() {
+      TransitionSchema schema = TransitionSchema.root()
+          .tag("cite").attr("id");
+      ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+      adapter.feedToken("<cite id=\"ref1\"");
+      List<TaggedToken> tokens = adapter.flush();
+
+      // 불완전한 태그가 강제 완성됨
+      assertThat(tokens.get(0).event()).isEqualTo("OPEN");
+      assertThat(tokens.get(0).attributes()).containsEntry("id", "ref1");
+    }
+  }
 }

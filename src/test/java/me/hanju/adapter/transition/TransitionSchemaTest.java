@@ -323,7 +323,129 @@ class TransitionSchemaTest {
         }
     }
 
-    // ==================== 6. 스키마 조회 메서드 ====================
+    // ==================== 6. 속성(Attribute) 추가 ====================
+
+    @Nested
+    @DisplayName("속성 추가")
+    class AttributeAddition {
+
+        @Test
+        @DisplayName("단일 속성 추가")
+        void testSingleAttribute() {
+            TransitionSchema schema = TransitionSchema.root()
+                .tag("cite").attr("id");
+
+            Set<String> attrs = schema.getPathToAttributesMapping().get("/cite");
+            assertThat(attrs).containsExactly("id");
+        }
+
+        @Test
+        @DisplayName("여러 속성 추가")
+        void testMultipleAttributes() {
+            TransitionSchema schema = TransitionSchema.root()
+                .tag("cite").attr("id", "source", "type");
+
+            Set<String> attrs = schema.getPathToAttributesMapping().get("/cite");
+            assertThat(attrs).containsExactlyInAnyOrder("id", "source", "type");
+        }
+
+        @Test
+        @DisplayName("태그 없이 attr 호출 - 예외")
+        void testAttrWithoutTag() {
+            TransitionSchema schema = TransitionSchema.root();
+
+            assertThatThrownBy(() -> schema.attr("id"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("No tag to add attributes to");
+        }
+
+        @Test
+        @DisplayName("null 속성 - 예외")
+        void testNullAttribute() {
+            TransitionSchema schema = TransitionSchema.root();
+
+            assertThatThrownBy(() -> schema.tag("cite").attr((String) null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Attribute name cannot be null or empty");
+        }
+
+        @Test
+        @DisplayName("빈 속성 - 예외")
+        void testEmptyAttribute() {
+            TransitionSchema schema = TransitionSchema.root();
+
+            assertThatThrownBy(() -> schema.tag("cite").attr(""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Attribute name cannot be null or empty");
+        }
+
+        @Test
+        @DisplayName("빈 속성 배열 - 예외")
+        void testEmptyAttributeArray() {
+            TransitionSchema schema = TransitionSchema.root();
+
+            assertThatThrownBy(() -> schema.tag("cite").attr())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("At least one attribute must be provided");
+        }
+
+        @Test
+        @DisplayName("중첩 태그에 속성 추가")
+        void testAttributeOnNestedTag() {
+            TransitionSchema schema = TransitionSchema.root()
+                .tag("section", section -> section
+                    .tag("cite").attr("id", "source"));
+
+            Set<String> attrs = schema.getPathToAttributesMapping().get("/section/cite");
+            assertThat(attrs).containsExactlyInAnyOrder("id", "source");
+        }
+
+        @Test
+        @DisplayName("속성 없는 경로 조회 - null")
+        void testNoAttributesPath() {
+            TransitionSchema schema = TransitionSchema.root()
+                .tag("cite");
+
+            Set<String> attrs = schema.getPathToAttributesMapping().get("/cite");
+            assertThat(attrs).isNull();
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 경로 조회 - null")
+        void testNonExistentPath() {
+            TransitionSchema schema = TransitionSchema.root()
+                .tag("cite");
+
+            Set<String> attrs = schema.getPathToAttributesMapping().get("/unknown");
+            assertThat(attrs).isNull();
+        }
+
+        @Test
+        @DisplayName("alias와 attr 함께 사용")
+        void testAliasAndAttrTogether() {
+            TransitionSchema schema = TransitionSchema.root()
+                .tag("cite").alias("rag").attr("id", "source");
+
+            assertThat(schema.getPathToAttributesMapping().get("/cite"))
+                .containsExactlyInAnyOrder("id", "source");
+            assertThat(schema.getPathToTagsMapping().get("/cite"))
+                .containsExactlyInAnyOrder("cite", "rag");
+        }
+
+        @Test
+        @DisplayName("getPathToAttributesMapping 결과 수정 불가")
+        void testPathToAttributesMappingUnmodifiable() {
+            TransitionSchema schema = TransitionSchema.root()
+                .tag("cite").attr("id");
+
+            Map<String, Set<String>> mapping = schema.getPathToAttributesMapping();
+
+            assertThatThrownBy(() -> mapping.put("/new", Set.of("attr")))
+                .isInstanceOf(UnsupportedOperationException.class);
+        }
+    }
+
+    // ==================== 7. 스키마 조회 메서드 ====================
 
     @Nested
     @DisplayName("스키마 조회 메서드")
