@@ -21,12 +21,11 @@ import me.hanju.adapter.transition.TransitionSchema;
 import me.hanju.adapter.transition.TransitionTable;
 
 /**
- * 스트리밍 토큰을 XML-like 태그로 파싱하고 상태 전이를 수행하는 어댑터
- * <p>
- * Aho-Corasick 알고리즘으로 다중 패턴 매칭(O(n))을 수행하고,
+ * 스트리밍 토큰을 XML-like 태그로 파싱하고 상태 전이를 수행하는 어댑터.
+ *
+ * <p>Aho-Corasick 알고리즘으로 다중 패턴 매칭(O(n))을 수행하고,
  * 정의된 스키마에 따라 태그 전이를 시도합니다.
- * 전이 불가능한 태그는 일반 텍스트로 처리됩니다.
- * </p>
+ * 전이 불가능한 태그는 일반 텍스트로 처리됩니다.</p>
  */
 public class ContentStreamAdapter {
 
@@ -37,6 +36,12 @@ public class ContentStreamAdapter {
   private TransitionNode currentState;
   private final StringBuilder rawAccumulator = new StringBuilder();
 
+  /**
+   * 스키마를 기반으로 어댑터를 생성합니다.
+   *
+   * @param schema 태그 전이 스키마
+   * @throws IllegalArgumentException schema가 null인 경우
+   */
   public ContentStreamAdapter(TransitionSchema schema) {
     if (schema == null) {
       throw new IllegalArgumentException("Schema cannot be null");
@@ -52,7 +57,10 @@ public class ContentStreamAdapter {
   }
 
   /**
-   * 토큰을 처리하여 현재 상태 기준의 TaggedToken 리스트 반환
+   * 토큰을 처리하여 현재 상태 기준의 TaggedToken 리스트를 반환합니다.
+   *
+   * @param token 처리할 토큰
+   * @return 처리된 TaggedToken 리스트
    */
   public List<TaggedToken> feedToken(String token) {
     if (token == null || token.isEmpty()) {
@@ -149,8 +157,7 @@ public class ContentStreamAdapter {
           }
         }
       }
-    } else if (result instanceof MatchResult.PatternMatchResult(List<String> prevTokens,
-        String pattern)) {
+    } else if (result instanceof MatchResult.PatternMatchResult(List<String> prevTokens, String pattern)) {
       if (openTagParser.isParsing()) {
         String combined = String.join("", prevTokens);
         if (!combined.isEmpty()) {
@@ -192,7 +199,9 @@ public class ContentStreamAdapter {
   }
 
   /**
-   * 남은 버퍼 텍스트를 모두 flush
+   * 남은 버퍼 텍스트를 모두 flush합니다.
+   *
+   * @return flush된 TaggedToken 리스트
    */
   public List<TaggedToken> flush() {
     List<TaggedToken> tokens = new ArrayList<>();
@@ -245,10 +254,20 @@ public class ContentStreamAdapter {
     return currentState;
   }
 
+  /**
+   * 현재 FSM 경로를 반환합니다.
+   *
+   * @return 현재 경로 (예: "/", "/cite")
+   */
   public String getCurrentPath() {
     return currentState.getPath();
   }
 
+  /**
+   * 지금까지 입력된 모든 토큰의 원본 문자열을 반환합니다.
+   *
+   * @return 누적된 원본 문자열
+   */
   public String getRaw() {
     return rawAccumulator.toString();
   }

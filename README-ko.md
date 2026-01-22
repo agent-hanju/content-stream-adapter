@@ -18,6 +18,7 @@ LLM 스트리밍 응답에서 XML-like 태그를 파싱하여 경로별로 구�
 - **Aho-Corasick 알고리즘**: O(n) 다중 패턴 매칭
 - **Multi-depth 경로 지원**: `/section/subsection/content` 등의 계층 구조
 - **별칭(Alias) 지원**: 여러 태그 이름을 같은 경로로 매핑
+- **속성(Attribute) 지원**: 태그 속성 파싱 및 필터링 (예: `<cite id="ref">`)
 - **Fault-tolerant**: 인식된 태그라도 전이 불가하면 텍스트로 처리
 
 ## 의존성
@@ -48,7 +49,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.5'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.6'
 }
 ```
 
@@ -71,7 +72,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.5</version>
+    <version>0.1.6</version>
 </dependency>
 ```
 
@@ -133,6 +134,34 @@ ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
 adapter.feedToken("Reference: <cite>source1</cite>");
 adapter.feedToken("RAG: <rag>source2</rag>");
 ```
+
+### 속성(Attribute) 지원
+
+스키마에서 정의한 허용 속성만 파싱하여 필터링합니다:
+
+```java
+TransitionSchema schema = TransitionSchema.root()
+    .tag("cite").attr("id", "source")   // "id"와 "source" 속성만 허용
+    .tag("think");
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+
+for (TaggedToken token : adapter.feedToken("<cite id=\"ref1\" source=\"wiki\" extra=\"ignored\">content</cite>")) {
+    if ("OPEN".equals(token.event())) {
+        // token.attributes()에는 허용된 속성만 포함: {id: "ref1", source: "wiki"}
+        // "extra"는 필터링됨
+        System.out.println("Cite 열림: " + token.attributes());
+    }
+}
+```
+
+**주요 동작:**
+
+- 속성은 여는 태그에서 파싱됨 (예: `<cite id="ref">`)
+- 스키마에 정의된 속성만 출력에 포함
+- 큰따옴표와 작은따옴표 모두 지원
+- 불완전한 속성(따옴표가 닫히지 않음)은 flush 시 무시
+- 속성이 정의되지 않은 태그는 빈 `attributes()` 맵 반환
 
 ### 이벤트 처리
 
@@ -302,13 +331,15 @@ consumer.end();
 2. **TransitionSchema**: 계층적 태그 스키마 빌더
 
    - Fluent API로 직관적인 스키마 정의
-   - 별칭 지원
+   - 별칭 지원 (`.alias()`)
+   - 속성 화이트리스트 (`.attr()`)
 
 3. **TaggedToken**: 출력 토큰 (record)
 
    - `path`: 현재 FSM 경로 (예: "/", "/section", "/section/subsection")
    - `content`: 태그를 제외한 텍스트 내용
    - `event`: 이벤트 타입 ("OPEN", "CLOSE", 또는 일반 콘텐츠일 때 null)
+   - `attributes`: 필터링된 속성 맵 (OPEN 이벤트에서만)
 
 4. **StreamPatternMatcher**: Aho-Corasick 기반 패턴 매칭
 
@@ -318,6 +349,12 @@ consumer.end();
 5. **TransitionTable**: 상태 전이 테이블
    - TransitionNode 트리를 사용한 O(1) 전이
    - 별칭 지원
+   - 속성 화이트리스트 조회
+
+6. **OpenTagParser**: 스트리밍 여는 태그 파서
+   - 상태 머신 기반 속성 파싱
+   - 여러 토큰에 걸친 따옴표 처리
+   - 큰따옴표와 작은따옴표 지원
 
 ## 성능 특성
 
@@ -327,7 +364,6 @@ consumer.end();
 
 ## 제한사항
 
-- 태그 속성은 지원하지 않습니다 (`<tag attr="value">` → `<tag>`로 처리)
 - 자가 닫힘 태그는 지원하지 않습니다 (`<tag/>`)
 - 중첩된 같은 태그는 지원하지 않습니다 (`<a><a></a></a>`)
 
@@ -341,7 +377,15 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ## 변경 이력
 
-### 0.1.5 (Current)
+### 0.1.6 (Current)
+
+- 기능: 태그 속성 파싱 지원 (`<cite id="ref">`)
+- 기능: 스키마 기반 속성 화이트리스트 (`.attr("id", "source")`)
+- 기능: `TaggedToken.attributes()`로 파싱된 속성 접근
+- 아키텍처: `OpenTagParser` - 상태 머신 기반 스트리밍 속성 파서
+- 아키텍처: `TransitionTable.getAllowedAttributes()` - 속성 필터링
+
+### 0.1.5
 
 - 기능: `getRaw()` 메서드로 누적된 원문 입력 조회
 

@@ -23,12 +23,17 @@ import java.util.logging.Logger;
  */
 public class TokenBuffer {
   private static final Logger log = Logger.getLogger(TokenBuffer.class.getName());
-  private static final int COMPACT_THRESHOLD = 50;  // 정리 임계값
+  private static final int COMPACT_THRESHOLD = 50; // 정리 임계값
 
   private final List<String> tokens = new ArrayList<>();
-  private int startIndex = 0;    // 논리적 시작 인덱스
-  private int splitOffset = 0;   // tokens[startIndex]의 시작 오프셋
+  private int startIndex = 0; // 논리적 시작 인덱스
+  private int splitOffset = 0; // tokens[startIndex]의 시작 오프셋
   private int totalLength = 0;
+
+  /** 기본 생성자. 필드는 선언 시 초기화됩니다. */
+  public TokenBuffer() {
+    // 필드는 선언에서 초기화됨
+  }
 
   /**
    * 토큰 추가

@@ -161,9 +161,14 @@ public class AhoCorasickTrie {
   }
 
   /**
-   * Builder 패턴으로 Trie 생성
+   * Builder 패턴으로 Trie 생성.
    */
   public static class Builder {
+    /** 기본 생성자. patterns Set은 선언 시 초기화됩니다. */
+    public Builder() {
+      // patterns는 필드 선언에서 초기화됨
+    }
+
     private final Set<String> patterns = new HashSet<>();
 
     /**

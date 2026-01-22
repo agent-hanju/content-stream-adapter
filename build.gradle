@@ -1,69 +1,81 @@
 plugins {
-    id 'java-library'
-    id 'maven-publish'
+  id 'java-library'
+  id 'maven-publish'
 }
 
 group = 'me.hanju.adapter'
-version = '0.1.6-SNAPSHOT'
+version = '0.1.6'
+description = 'A zero-allocation streaming XML-like parser with FSM-based state transitions, token boundary preservation, and Aho-Corasick pattern matching for sectioned text processing'
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-    withSourcesJar()
-    withJavadocJar()
-}
-
-javadoc {
-    options.addStringOption('Xdoclint:none', '-quiet')
-    options.encoding = 'UTF-8'
-    options.charSet = 'UTF-8'
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+  }
+  withSourcesJar()
+  withJavadocJar()
 }
 
 repositories {
-    mavenCentral()
+  mavenCentral()
 }
 
 dependencies {
-    // Test dependencies
-    testImplementation platform('org.junit:junit-bom:5.11.4')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+  testImplementation platform('org.junit:junit-bom:5.11.4')
+  testImplementation 'org.junit.jupiter:junit-jupiter'
+  testImplementation 'org.assertj:assertj-core:3.27.6'
+}
 
-    // AssertJ for fluent assertions
-    testImplementation 'org.assertj:assertj-core:3.27.6'
+tasks.withType(JavaCompile).configureEach {
+  options.encoding = 'UTF-8'
+}
+
+tasks.withType(Javadoc).configureEach {
+  options.encoding = 'UTF-8'
+  options.charSet = 'UTF-8'
+  failOnError = false
 }
 
 test {
-    useJUnitPlatform()
+  useJUnitPlatform()
 }
 
 publishing {
-    publications {
-        maven(MavenPublication) {
-            from components.java
-            groupId = 'com.github.agent-hanju'
-            artifactId = 'content-stream-adapter'
+  publications {
+    maven(MavenPublication) {
+      from components.java
 
-            pom {
-                name = 'Content Stream Adapter'
-                description = 'A zero-allocation streaming XML-like parser with FSM-based state transitions, token boundary preservation, and Aho-Corasick pattern matching for sectioned text processing'
-                url = 'https://github.com/agent-hanju/content-stream-adapter'
+      pom {
+        name = 'Content Stream Adapter'
+        description = project.description
+        url = 'https://github.com/agent-hanju/content-stream-adapter'
 
-                licenses {
-                    license {
-                        name = 'MIT License'
-                        url = 'https://opensource.org/licenses/MIT'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id = 'agent-hanju'
-                        email = 'agent.hanju@gmail.com'
-                    }
-                }
-            }
+        licenses {
+          license {
+            name = 'MIT License'
+            url = 'https://opensource.org/licenses/MIT'
+            distribution = 'repo'
+          }
         }
+
+        developers {
+          developer {
+            id = 'agent-hanju'
+            name = 'hanju'
+            email = 'agent.hanju@gmail.com'
+          }
+        }
+
+        scm {
+          url = 'https://github.com/agent-hanju/content-stream-adapter'
+          connection = 'scm:git:git://github.com/agent-hanju/content-stream-adapter.git'
+          developerConnection = 'scm:git:ssh://git@github.com/agent-hanju/content-stream-adapter.git'
+        }
+
+        issueManagement {
+          system = 'GitHub Issues'
+          url = 'https://github.com/agent-hanju/content-stream-adapter/issues'
+        }
+      }
     }
+  }
 }

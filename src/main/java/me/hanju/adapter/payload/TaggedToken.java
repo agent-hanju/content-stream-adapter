@@ -12,6 +12,11 @@ import java.util.Map;
  * @param attributes OPEN 이벤트 시 속성 맵 (없으면 빈 맵)
  */
 public record TaggedToken(String path, String content, String event, Map<String, String> attributes) {
+  /**
+   * 레코드 유효성 검증을 수행하는 컴팩트 생성자.
+   *
+   * @throws IllegalArgumentException path가 null이거나, event가 null일 때 content가 null인 경우
+   */
   public TaggedToken {
     if (path == null) {
       throw new IllegalArgumentException("path cannot be null");
@@ -27,35 +32,52 @@ public record TaggedToken(String path, String content, String event, Map<String,
   }
 
   /**
-   * 일반 토큰 생성 (event = null, attributes = empty)
+   * 일반 토큰을 생성합니다 (event = null, attributes = empty).
+   *
+   * @param path 현재 FSM 경로
+   * @param content 텍스트 컨텐츠
    */
   public TaggedToken(String path, String content) {
     this(path, content, null, Collections.emptyMap());
   }
 
   /**
-   * 이벤트 토큰 생성 (attributes = empty) - 기존 호환성
+   * 이벤트 토큰을 생성합니다 (attributes = empty).
+   *
+   * @param path 현재 FSM 경로
+   * @param content 텍스트 컨텐츠 (이벤트 토큰은 null 가능)
+   * @param event 이벤트 타입 ("OPEN", "CLOSE", 또는 null)
    */
   public TaggedToken(String path, String content, String event) {
     this(path, content, event, Collections.emptyMap());
   }
 
   /**
-   * OPEN 이벤트 토큰 생성 (속성 없음)
+   * OPEN 이벤트 토큰을 생성합니다 (속성 없음).
+   *
+   * @param path 현재 FSM 경로
+   * @return OPEN 이벤트 토큰
    */
   public static TaggedToken openEvent(String path) {
     return new TaggedToken(path, null, "OPEN", Collections.emptyMap());
   }
 
   /**
-   * OPEN 이벤트 토큰 생성 (속성 포함)
+   * OPEN 이벤트 토큰을 생성합니다 (속성 포함).
+   *
+   * @param path 현재 FSM 경로
+   * @param attributes 태그 속성 맵
+   * @return OPEN 이벤트 토큰
    */
   public static TaggedToken openEvent(String path, Map<String, String> attributes) {
     return new TaggedToken(path, null, "OPEN", attributes);
   }
 
   /**
-   * CLOSE 이벤트 토큰 생성
+   * CLOSE 이벤트 토큰을 생성합니다.
+   *
+   * @param path 닫히는 태그의 FSM 경로
+   * @return CLOSE 이벤트 토큰
    */
   public static TaggedToken closeEvent(String path) {
     return new TaggedToken(path, null, "CLOSE", Collections.emptyMap());

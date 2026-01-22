@@ -3,24 +3,29 @@ package me.hanju.adapter.payload;
 import java.util.List;
 
 /**
- * 패턴 매칭 결과 (Sealed)
+ * 패턴 매칭 결과 (Sealed).
  */
 public sealed interface MatchResult {
 
   /**
-   * 일반 텍스트 토큰 (토큰 경계 보존)
+   * 일반 텍스트 토큰 (토큰 경계 보존).
+   *
+   * @param tokens 토큰 리스트
    */
   record TokenMatchResult(List<String> tokens) implements MatchResult {
   }
 
   /**
-   * 패턴 감지
+   * 패턴 감지 결과.
+   *
+   * @param prevTokens 패턴 이전 토큰들
+   * @param pattern 감지된 패턴
    */
   record PatternMatchResult(List<String> prevTokens, String pattern) implements MatchResult {
   }
 
   /**
-   * 매칭 결과 없음 (더 많은 입력 필요)
+   * 매칭 결과 없음 (더 많은 입력 필요).
    */
   record NoMatchResult() implements MatchResult {
   }

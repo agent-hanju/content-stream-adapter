@@ -10,13 +10,12 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * 계층적 태그 스키마 빌더
- * <p>
- * Fluent API로 태그 구조를 정의하고 별칭을 지원합니다.
- * </p>
+ * 계층적 태그 스키마 빌더.
  *
- * <h3>사용 예시:</h3>
- * <pre>
+ * <p>Fluent API로 태그 구조를 정의하고 별칭을 지원합니다.</p>
+ *
+ * <p><b>사용 예시:</b></p>
+ * <pre>{@code
  * TransitionSchema schema = TransitionSchema.root()
  *     .tag("section", section -> section
  *         .tag("subsection", subsection -> subsection
@@ -25,7 +24,7 @@ import java.util.function.Consumer;
  *     .tag("cite").alias("rag");
  *
  * ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
- * </pre>
+ * }</pre>
  */
 public class TransitionSchema {
   private final String currentPath;
@@ -40,12 +39,20 @@ public class TransitionSchema {
     this.pathToAttributes = pathToAttributes;
   }
 
+  /**
+   * 루트 스키마를 생성합니다.
+   *
+   * @return 새로운 루트 스키마
+   */
   public static TransitionSchema root() {
     return new TransitionSchema("/", new HashMap<>(), new HashMap<>());
   }
 
   /**
-   * 현재 레벨에 태그 추가
+   * 현재 레벨에 태그를 추가합니다.
+   *
+   * @param name 태그 이름
+   * @return 이 스키마 (체이닝용)
    */
   public TransitionSchema tag(String name) {
     if (name == null || name.isEmpty()) {
@@ -60,7 +67,11 @@ public class TransitionSchema {
   }
 
   /**
-   * 현재 레벨에 중첩 태그 추가
+   * 현재 레벨에 중첩 태그를 추가합니다.
+   *
+   * @param name 태그 이름
+   * @param builder 하위 태그를 정의하는 빌더
+   * @return 이 스키마 (체이닝용)
    */
   public TransitionSchema tag(String name, Consumer<TransitionSchema> builder) {
     if (name == null || name.isEmpty()) {
@@ -81,7 +92,10 @@ public class TransitionSchema {
   }
 
   /**
-   * 마지막 태그에 별칭 추가
+   * 마지막 태그에 별칭을 추가합니다.
+   *
+   * @param aliases 별칭 이름들
+   * @return 이 스키마 (체이닝용)
    */
   public TransitionSchema alias(String... aliases) {
     if (lastAddedPath == null) {
@@ -103,7 +117,10 @@ public class TransitionSchema {
   }
 
   /**
-   * 마지막 태그에 허용할 속성 추가
+   * 마지막 태그에 허용할 속성을 추가합니다.
+   *
+   * @param attributes 허용할 속성 이름들
+   * @return 이 스키마 (체이닝용)
    */
   public TransitionSchema attr(String... attributes) {
     if (lastAddedPath == null) {
@@ -124,6 +141,11 @@ public class TransitionSchema {
     return this;
   }
 
+  /**
+   * 경로별 태그 매핑을 반환합니다.
+   *
+   * @return 경로를 키로, 태그 이름 리스트를 값으로 갖는 불변 맵
+   */
   public Map<String, List<String>> getPathToTagsMapping() {
     Map<String, List<String>> result = new HashMap<>();
     for (Map.Entry<String, List<String>> entry : pathToTags.entrySet()) {
@@ -132,6 +154,11 @@ public class TransitionSchema {
     return Collections.unmodifiableMap(result);
   }
 
+  /**
+   * 경로별 허용 속성 매핑을 반환합니다.
+   *
+   * @return 경로를 키로, 허용 속성 이름 집합을 값으로 갖는 불변 맵
+   */
   public Map<String, Set<String>> getPathToAttributesMapping() {
     Map<String, Set<String>> result = new HashMap<>();
     for (Map.Entry<String, Set<String>> entry : pathToAttributes.entrySet()) {
@@ -140,10 +167,20 @@ public class TransitionSchema {
     return Collections.unmodifiableMap(result);
   }
 
+  /**
+   * 모든 경로를 반환합니다.
+   *
+   * @return 모든 경로의 불변 집합
+   */
   public Set<String> getAllPaths() {
     return Collections.unmodifiableSet(pathToTags.keySet());
   }
 
+  /**
+   * 모든 태그 이름(별칭 포함)을 반환합니다.
+   *
+   * @return 모든 태그 이름의 불변 집합
+   */
   public Set<String> getAllTagNames() {
     Set<String> allTags = new HashSet<>();
     for (List<String> tags : pathToTags.values()) {

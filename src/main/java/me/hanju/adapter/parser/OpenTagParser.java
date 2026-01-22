@@ -5,27 +5,31 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 열린 태그를 스트리밍 방식으로 파싱하는 파서
- * <p>
- * {@code <tagname} 패턴이 감지된 후, {@code >}까지 스트리밍으로 파싱하여
+ * 열린 태그를 스트리밍 방식으로 파싱하는 파서.
+ *
+ * <p>{@code <tagname} 패턴이 감지된 후, {@code >}까지 스트리밍으로 파싱하여
  * 태그 이름과 속성을 추출합니다.
- * 따옴표 안의 {@code >}는 태그 종료로 처리하지 않습니다.
- * </p>
+ * 따옴표 안의 {@code >}는 태그 종료로 처리하지 않습니다.</p>
  *
- * <h3>사용 예시:</h3>
- * <pre>
+ * <p><b>사용 예시:</b></p>
+ * <pre>{@code
  * OpenTagParser parser = new OpenTagParser();
- * parser.start("&lt;cite");
+ * parser.start("<cite");
  *
- * ParsedTag result = parser.feed(" id=\"ref\"&gt;content");
+ * ParsedTag result = parser.feed(" id=\"ref\">content");
  * // result != null (완성됨)
  * // result.tagName() == "cite"
  * // result.attributes() == {id: "ref"}
- * // result.rawTag() == "&lt;cite id=\"ref\"&gt;"
+ * // result.rawTag() == "<cite id=\"ref\">"
  * // parser.getRemaining() == "content"
- * </pre>
+ * }</pre>
  */
 public class OpenTagParser {
+
+  /** 기본 생성자. 필드는 {@link #start(String)} 호출 시 초기화됩니다. */
+  public OpenTagParser() {
+    // 필드 초기화는 start() 메서드에서 수행
+  }
 
   private String tagName;
   private Map<String, String> attributes;
@@ -188,21 +192,25 @@ public class OpenTagParser {
   }
 
   /**
-   * 파싱 중인지 확인
+   * 파싱 중인지 확인합니다.
+   *
+   * @return 파싱 중이면 true
    */
   public boolean isParsing() {
     return tagName != null;
   }
 
   /**
-   * 태그 완성 후 남은 문자열 반환
+   * 태그 완성 후 남은 문자열을 반환합니다.
+   *
+   * @return 태그 종료 후 남은 문자열
    */
   public String getRemaining() {
     return remaining;
   }
 
   /**
-   * 파서 상태 초기화
+   * 파서 상태를 초기화합니다.
    */
   public void reset() {
     tagName = null;
@@ -215,11 +223,12 @@ public class OpenTagParser {
   }
 
   /**
-   * 불완전한 태그를 강제로 완성 (flush 시 사용)
-   * <p>
-   * 현재까지 파싱된 태그 이름과 완성된 속성만 반환합니다.
-   * 불완전한 속성(닫는 따옴표가 없는 등)은 무시됩니다.
-   * </p>
+   * 불완전한 태그를 강제로 완성합니다 (flush 시 사용).
+   *
+   * <p>현재까지 파싱된 태그 이름과 완성된 속성만 반환합니다.
+   * 불완전한 속성(닫는 따옴표가 없는 등)은 무시됩니다.</p>
+   *
+   * @return 파싱된 태그 정보, 파싱 중이 아니면 null
    */
   public ParsedTag forceComplete() {
     if (tagName == null) {
@@ -229,7 +238,11 @@ public class OpenTagParser {
   }
 
   /**
-   * 파싱된 태그 정보
+   * 파싱된 태그 정보.
+   *
+   * @param tagName 태그 이름
+   * @param attributes 파싱된 속성 맵
+   * @param rawTag 원본 태그 문자열
    */
   public record ParsedTag(String tagName, Map<String, String> attributes, String rawTag) {
   }

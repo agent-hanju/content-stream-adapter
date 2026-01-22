@@ -37,22 +37,48 @@ public class TransitionNode {
     this.children = new HashMap<>();
   }
 
+  /**
+   * 노드의 경로를 반환합니다.
+   *
+   * @return 경로 문자열 (예: "/section/subsection")
+   */
   public String getPath() {
     return path;
   }
 
+  /**
+   * 노드의 태그 이름을 반환합니다.
+   *
+   * @return 태그 이름 (루트 노드는 null)
+   */
   public String getTagName() {
     return tagName;
   }
 
+  /**
+   * 부모 노드를 반환합니다.
+   *
+   * @return 부모 노드 (루트 노드는 null)
+   */
   public TransitionNode getParent() {
     return parent;
   }
 
+  /**
+   * 루트 노드인지 확인합니다.
+   *
+   * @return 루트 노드이면 true
+   */
   public boolean isRoot() {
     return parent == null;
   }
 
+  /**
+   * 지정한 태그 이름의 자식 노드를 반환합니다.
+   *
+   * @param tagName 찾을 태그 이름
+   * @return 자식 노드 (없으면 null)
+   */
   public TransitionNode getChild(String tagName) {
     return children.get(tagName);
   }
@@ -82,7 +108,10 @@ public class TransitionNode {
   }
 
   /**
-   * 허용 경로 목록으로부터 트리 생성
+   * 허용 경로 목록으로부터 트리를 생성합니다.
+   *
+   * @param allowedPaths 허용할 경로 집합
+   * @return 루트 노드
    */
   public static TransitionNode createTree(Set<String> allowedPaths) {
     TransitionNode root = new TransitionNode("/", null, null);
