@@ -9,7 +9,7 @@ A zero-dependency streaming XML-like parser with FSM-based state transitions, to
 
 ## Overview
 
-ContentStreamAdapter parses XML-like sectioned text that arrives token-by-token (e.g., from LLM streaming responses), extracts content while preserving path context, and outputs structured tokens in real-time.
+ContentStreamAdapter parses XML-like sectioned text that arrives token-by-token (e.g., from LLM streaming responses), extracts content while preserving path context, and outputs structured events in real-time.
 
 ## Key Features
 
@@ -20,6 +20,7 @@ ContentStreamAdapter parses XML-like sectioned text that arrives token-by-token 
 - **Alias Support**: Map multiple tag names to the same path
 - **Attribute Support**: Parse and filter tag attributes (e.g., `<cite id="ref">`)
 - **Fault-tolerant**: Unrecognized or invalid transitions output as text
+- **Reusable Adapter**: `flush()` resets the adapter so it can process a new stream
 
 ## Requirements
 
@@ -49,7 +50,7 @@ dependencyResolutionManagement {
 
 ```gradle
 dependencies {
-    implementation 'com.github.agent-hanju:content-stream-adapter:0.1.6'
+    implementation 'com.github.agent-hanju:content-stream-adapter:0.2.0-SNAPSHOT'
 }
 ```
 
@@ -72,7 +73,7 @@ dependencies {
 <dependency>
     <groupId>com.github.agent-hanju</groupId>
     <artifactId>content-stream-adapter</artifactId>
-    <version>0.1.6</version>
+    <version>0.2.0-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -80,43 +81,67 @@ dependencies {
 
 ### Basic Usage
 
+Schema definition and XML tag binding are separate steps: `TransitionSchema` defines the abstract path
+structure, and `XmlTagBinding` maps concrete tag names (and attributes) onto that structure.
+
 ```java
-import me.hanju.adapter.ContentStreamAdapter;
-import me.hanju.adapter.transition.TransitionSchema;
-import me.hanju.adapter.payload.TaggedToken;
+import dev.hanju.adapter.ContentStreamAdapter;
+import dev.hanju.adapter.transition.TransitionSchema;
+import dev.hanju.adapter.xml.XmlTagBinding;
+import dev.hanju.adapter.xml.XmlStreamOutput;
 
 import java.util.List;
 
-// 1. Define schema
+// 1. Define the path structure
 TransitionSchema schema = TransitionSchema.root()
-    .tag("section", section -> section
-        .tag("subsection", subsection -> subsection
-            .tag("content"))
-        .tag("metadata"))
-    .tag("result");
+    .path("section", section -> section
+        .path("subsection", subsection -> subsection
+            .path("content"))
+        .path("metadata"))
+    .path("result");
 
-// 2. Create adapter
-ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+// 2. Bind tag names to schema paths
+XmlTagBinding binding = XmlTagBinding.from(schema)
+    .bind("/section").tag("section").and()
+    .bind("/section/subsection").tag("subsection").and()
+    .bind("/section/subsection/content").tag("content").and()
+    .bind("/section/metadata").tag("metadata").and()
+    .bind("/result").tag("result").and()
+    .build();
 
-// 3. Feed tokens
+// 3. Create adapter
+ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+
+// 4. Feed tokens
 String input = "Hello <section><subsection><content>world</content></subsection></section>!";
-List<TaggedToken> tokens = adapter.feedToken(input);
+List<XmlStreamOutput> outputs = adapter.feedToken(input);
 
-// 4. Process output
-for (TaggedToken token : tokens) {
-    System.out.println("Path: " + token.path() + ", Content: " + token.content());
+// 5. Process output (sealed type: Text / Enter / Exit)
+for (XmlStreamOutput output : outputs) {
+    switch (output) {
+        case XmlStreamOutput.Text t -> System.out.println("Text: " + t.content());
+        case XmlStreamOutput.Enter e -> System.out.println("Enter: " + e.path());
+        case XmlStreamOutput.Exit e -> System.out.println("Exit: " + e.path());
+    }
 }
 
-// 5. Flush buffer (on stream end)
-List<TaggedToken> remaining = adapter.flush();
+// 6. Flush at stream end. This also resets the adapter (FSM state, raw
+//    accumulator) so the same instance can be reused for a new stream.
+List<XmlStreamOutput> remaining = adapter.flush();
 ```
 
 ### Output
 
 ```
-Path: /, Content: Hello
-Path: /section/subsection/content, Content: world
-Path: /, Content: !
+Text: Hello
+Enter: /section
+Enter: /section/subsection
+Enter: /section/subsection/content
+Text: world
+Exit: /section/subsection/content
+Exit: /section/subsection
+Exit: /section
+Text: !
 ```
 
 ### Alias Support
@@ -124,33 +149,40 @@ Path: /, Content: !
 Map multiple tag names to the same path:
 
 ```java
-TransitionSchema schema = TransitionSchema.root()
-    .tag("cite").alias("rag")           // Both <cite> and <rag> map to /cite
-    .tag("think").alias("thinking");    // Both <think> and <thinking> map to /think
+TransitionSchema schema = TransitionSchema.root().path("cite");
 
-ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+XmlTagBinding binding = XmlTagBinding.from(schema)
+    .bind("/cite").tag("cite").alias("rag")
+    .and()
+    .build();
 
-// Both processed as /cite path
+ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+
+// Both <cite> and <rag> are treated as path /cite
 adapter.feedToken("Reference: <cite>source1</cite>");
 adapter.feedToken("RAG: <rag>source2</rag>");
 ```
 
 ### Attribute Support
 
-Parse tag attributes and filter them through schema-defined allowed attributes:
+Parse tag attributes and filter them through the binding's allowed-attribute list:
 
 ```java
-TransitionSchema schema = TransitionSchema.root()
-    .tag("cite").attr("id", "source")   // Allow only "id" and "source" attributes
-    .tag("think");
+TransitionSchema schema = TransitionSchema.root().path("cite");
 
-ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+XmlTagBinding binding = XmlTagBinding.from(schema)
+    .bind("/cite").tag("cite").attr("id", "source")   // Allow only "id" and "source"
+    .and()
+    .build();
 
-for (TaggedToken token : adapter.feedToken("<cite id=\"ref1\" source=\"wiki\" extra=\"ignored\">content</cite>")) {
-    if ("OPEN".equals(token.event())) {
-        // token.attributes() contains only allowed attributes: {id: "ref1", source: "wiki"}
+ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+
+for (XmlStreamOutput output : adapter.feedToken(
+        "<cite id=\"ref1\" source=\"wiki\" extra=\"ignored\">content</cite>")) {
+    if (output instanceof XmlStreamOutput.Enter enter) {
+        // enter.attributes() contains only allowed attributes: {id: "ref1", source: "wiki"}
         // "extra" is filtered out
-        System.out.println("Cite opened with: " + token.attributes());
+        System.out.println("Cite opened with: " + enter.attributes());
     }
 }
 ```
@@ -158,30 +190,34 @@ for (TaggedToken token : adapter.feedToken("<cite id=\"ref1\" source=\"wiki\" ex
 **Key behaviors:**
 
 - Attributes are parsed from open tags (e.g., `<cite id="ref">`)
-- Only schema-defined attributes are included in the output
-- Attributes support both double and single quotes
+- Only attributes allowed via `.attr(...)` are included in the output
+- Attributes support both double and single quotes; unquoted values (`id=1`) are non-conformant
+  XML and are parsed but discarded (recorded as valueless)
 - Incomplete attributes (unclosed quotes) are ignored on flush
-- Tags without defined attributes have empty `attributes()` map
+- Tags without an `.attr(...)` binding have an empty `attributes()` map
 
-### Event Handling
+### Enter / Exit Events
 
-TaggedToken includes an `event` field that notifies when tags open or close:
+`XmlStreamOutput` is a sealed interface with three variants — `Text`, `Enter`, and `Exit` — so tag
+transitions are distinguished by type rather than by a string field:
 
 ```java
 TransitionSchema schema = TransitionSchema.root()
-    .tag("cite")
-    .tag("think");
+    .path("cite")
+    .path("think");
 
-ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+XmlTagBinding binding = XmlTagBinding.from(schema)
+    .bind("/cite").tag("cite").and()
+    .bind("/think").tag("think").and()
+    .build();
 
-for (TaggedToken token : adapter.feedToken("Start <cite>source</cite> end")) {
-    if ("OPEN".equals(token.event())) {
-        System.out.println("Tag opened: " + token.path());
-    } else if ("CLOSE".equals(token.event())) {
-        System.out.println("Tag closed: " + token.path());
-    } else {
-        // Regular content (event is null)
-        System.out.println("[" + token.path() + "] " + token.content());
+ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+
+for (XmlStreamOutput output : adapter.feedToken("Start <cite>source</cite> end")) {
+    switch (output) {
+        case XmlStreamOutput.Enter e -> System.out.println("Tag opened: " + e.path());
+        case XmlStreamOutput.Exit e -> System.out.println("Tag closed: " + e.path());
+        case XmlStreamOutput.Text t -> System.out.println("[content] " + t.content());
     }
 }
 ```
@@ -189,12 +225,15 @@ for (TaggedToken token : adapter.feedToken("Start <cite>source</cite> end")) {
 **Output:**
 
 ```
-[/] Start
+[content] Start
 Tag opened: /cite
-[/cite] source
+[content] source
 Tag closed: /cite
-[/] end
+[content] end
 ```
+
+Note that `Text` carries no path — use `adapter.getCurrentPath()` at the point a `Text` output is
+received if you need to know which section it belongs to (see the streaming patterns below).
 
 This is useful for tracking section boundaries, triggering UI updates, or collecting metadata about tag structure.
 
@@ -203,7 +242,7 @@ This is useful for tracking section boundaries, triggering UI updates, or collec
 Retrieve the accumulated raw input at any time using `getRaw()`:
 
 ```java
-ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
 adapter.feedToken("Hello ");
 adapter.feedToken("<cite>");
@@ -216,62 +255,48 @@ String raw = adapter.getRaw();  // "Hello <cite>content</cite>"
 
 This is useful for debugging, logging, or when you need the original unprocessed input.
 
+**Note:** `flush()` clears the accumulator as part of resetting the adapter for reuse, so `getRaw()`
+returns an empty string after `flush()`. Call `getRaw()` before flushing if you need the full raw input.
+
 ### Streaming Processing
 
 #### Pattern 1: Direct Iteration (Simple)
 
 ```java
 TransitionSchema schema = TransitionSchema.root()
-    .tag("think")
-    .tag("cite");
+    .path("think")
+    .path("cite");
 
-ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
+XmlTagBinding binding = XmlTagBinding.from(schema)
+    .bind("/think").tag("think").and()
+    .bind("/cite").tag("cite").and()
+    .build();
+
+ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
 // Process LLM streaming tokens
 for (String token : llmStreamingTokens) {
-    List<TaggedToken> results = adapter.feedToken(token);
-
-    for (TaggedToken taggedToken : results) {
-        // Real-time processing per path
-        switch (taggedToken.path()) {
-            case "/think" -> logThinkingProcess(taggedToken.content());
-            case "/cite" -> collectCitation(taggedToken.content());
-            default -> outputToUser(taggedToken.content());
+    for (XmlStreamOutput output : adapter.feedToken(token)) {
+        if (output instanceof XmlStreamOutput.Text text) {
+            // Real-time processing per current path
+            switch (adapter.getCurrentPath()) {
+                case "/think" -> logThinkingProcess(text.content());
+                case "/cite" -> collectCitation(text.content());
+                default -> outputToUser(text.content());
+            }
         }
     }
 }
 
-// Flush remaining buffer on stream end
-adapter.flush().forEach(token -> processToken(token));
-```
-
-#### Pattern 2: Reactive Streams (WebFlux/Reactor)
-
-```java
-import reactor.core.publisher.Flux;
-
-TransitionSchema schema = TransitionSchema.root()
-    .tag("think")
-    .tag("cite");
-
-// SSE or WebFlux streaming endpoint
-public Flux<ServerSentEvent<String>> streamLlmResponse() {
-    ContentStreamAdapter adapter = new ContentStreamAdapter(schema);
-
-    return llmClient.streamTokens()
-        .flatMapIterable(adapter::feedToken)  // Feed each token
-        .filter(token -> !"/think".equals(token.path()))  // Filter out thinking
-        .map(TaggedToken::content)
-        .concatWith(Flux.defer(() ->
-            Flux.fromIterable(adapter.flush())  // Flush on stream end
-                .filter(token -> !"/think".equals(token.path()))
-                .map(TaggedToken::content)
-        ))
-        .map(content -> ServerSentEvent.builder(content).build());
+// Flush remaining buffer on stream end (also resets the adapter)
+for (XmlStreamOutput output : adapter.flush()) {
+    if (output instanceof XmlStreamOutput.Text text) {
+        outputToUser(text.content());
+    }
 }
 ```
 
-#### Pattern 3: Consumer Pattern (Callback-based)
+#### Pattern 2: Consumer Pattern (Callback-based)
 
 ```java
 public class StreamingConsumer {
@@ -280,37 +305,42 @@ public class StreamingConsumer {
     private final Consumer<String> onCitation;
 
     public StreamingConsumer(
-            TransitionSchema schema,
+            XmlTagBinding binding,
             Consumer<String> onUserContent,
             Consumer<String> onCitation) {
-        this.adapter = new ContentStreamAdapter(schema);
+        this.adapter = new ContentStreamAdapter(binding);
         this.onUserContent = onUserContent;
         this.onCitation = onCitation;
     }
 
     public void accept(String token) {
-        adapter.feedToken(token).forEach(taggedToken -> {
-            switch (taggedToken.path()) {
-                case "/" -> onUserContent.accept(taggedToken.content());
-                case "/cite" -> onCitation.accept(taggedToken.content());
-                // Silently ignore "/think" path
+        for (XmlStreamOutput output : adapter.feedToken(token)) {
+            if (output instanceof XmlStreamOutput.Text text) {
+                dispatch(text.content());
             }
-        });
+        }
     }
 
     public void end() {
-        adapter.flush().forEach(taggedToken -> {
-            switch (taggedToken.path()) {
-                case "/" -> onUserContent.accept(taggedToken.content());
-                case "/cite" -> onCitation.accept(taggedToken.content());
+        for (XmlStreamOutput output : adapter.flush()) {
+            if (output instanceof XmlStreamOutput.Text text) {
+                dispatch(text.content());
             }
-        });
+        }
+    }
+
+    private void dispatch(String content) {
+        switch (adapter.getCurrentPath()) {
+            case "/" -> onUserContent.accept(content);
+            case "/cite" -> onCitation.accept(content);
+            // Silently ignore "/think" path
+        }
     }
 }
 
 // Usage
 StreamingConsumer consumer = new StreamingConsumer(
-    schema,
+    binding,
     content -> sendToClient(content),      // User-visible content
     citation -> storeCitation(citation)     // Background processing
 );
@@ -325,31 +355,30 @@ consumer.end();
 
 1. **ContentStreamAdapter**: Main adapter class
 
-   - Accepts tokens and returns TaggedToken lists
+   - Accepts tokens and returns `XmlStreamOutput` lists
    - FSM-based state management
+   - `flush()` finalizes the stream and resets the adapter for reuse
 
-2. **TransitionSchema**: Hierarchical tag schema builder
+2. **TransitionSchema**: Hierarchical path structure builder
 
-   - Fluent API for intuitive schema definition
-   - Alias support (`.alias()`)
-   - Attribute whitelist (`.attr()`)
+   - Fluent API via `.path(...)` for defining nested paths
+   - Pure structure — tag names, aliases, and attributes are bound separately
 
-3. **TaggedToken**: Output token (record)
+3. **XmlTagBinding**: Maps XML tag names onto schema paths
 
-   - `path`: Current FSM path (e.g., "/", "/section", "/section/subsection")
-   - `content`: Text content excluding tags
-   - `event`: Event type ("OPEN", "CLOSE", or null for regular content)
-   - `attributes`: Filtered attribute map (OPEN event only)
+   - `.tag(name)`, `.alias(...)`, `.attr(...)` per bound path
+   - Generates the Aho-Corasick patterns used for tag detection
 
-4. **StreamPatternMatcher**: Aho-Corasick based pattern matching
+4. **XmlStreamOutput**: Sealed output type
 
-   - O(n) multi-pattern detection
-   - Token boundary preservation
+   - `Text(content)`: plain text content
+   - `Enter(path, attributes)`: tag opened, entering `path`
+   - `Exit(path)`: tag closed, leaving `path`
 
 5. **TransitionTable**: State transition table
-   - O(1) transitions using TransitionNode tree
-   - Alias support
-   - Attribute whitelist lookup
+
+   - O(1) transitions using a `TransitionNode` tree
+   - Alias-compatible close tags (open with `<rag>`, close with `</cite>`)
 
 6. **OpenTagParser**: Streaming open tag parser
    - State machine-based attribute parsing
@@ -364,7 +393,8 @@ consumer.end();
 
 ## Limitations
 
-- No support for self-closing tags (`<tag/>`)
+- Self-closing syntax (`<tag/>`) is parsed safely but has no distinct semantics — treated like a regular open tag
+- Unquoted attribute values (`id=1`) are non-conformant XML; parsed but discarded (attribute recorded as valueless)
 - No support for nested identical tags (`<a><a></a></a>`)
 
 ## License
@@ -377,7 +407,16 @@ Issues and Pull Requests are welcome.
 
 ## Changelog
 
-### 0.1.6 (Current)
+### 0.2.0-SNAPSHOT (Current)
+
+- Architecture: Restructured into `buffer`, `matching`, `transition`, `xml` packages
+- Architecture: Introduced `XmlTagBinding` to separate abstract path structure (`TransitionSchema`) from concrete tag names/aliases/attributes
+- Architecture: Replaced `TaggedToken` with sealed `XmlStreamOutput` (`Text` / `Enter` / `Exit`)
+- Feature: `flush()` now resets the adapter (FSM state, raw accumulator) so it can be reused for a new stream
+- Fix: Self-closing syntax (`<tag/>`) no longer corrupts attribute parsing
+- Fix: Unquoted attribute values are discarded instead of being captured (XML conformance)
+
+### 0.1.6
 
 - Feature: Tag attribute parsing support (`<cite id="ref">`)
 - Feature: Schema-based attribute whitelist (`.attr("id", "source")`)

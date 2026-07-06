@@ -3,8 +3,8 @@ plugins {
   id 'maven-publish'
 }
 
-group = 'me.hanju.adapter'
-version = '0.1.6'
+group = 'dev.hanju.adapter'
+version = '0.2.0-SNAPSHOT'
 description = 'A zero-allocation streaming XML-like parser with FSM-based state transitions, token boundary preservation, and Aho-Corasick pattern matching for sectioned text processing'
 
 java {
