@@ -1,11 +1,12 @@
 plugins {
   id 'java-library'
   id 'maven-publish'
+  id 'net.ltgt.errorprone' version '5.1.0'
 }
 
 group = 'dev.hanju.adapter'
 version = '0.2.0-SNAPSHOT'
-description = 'A zero-allocation streaming XML-like parser with FSM-based state transitions, token boundary preservation, and Aho-Corasick pattern matching for sectioned text processing'
+description = 'A zero-allocation streaming XML-like parser with FSM-based state transitions, token boundary preservation, and XML-like tag tokenization for sectioned text processing'
 
 java {
   toolchain {
@@ -20,13 +21,30 @@ repositories {
 }
 
 dependencies {
+  compileOnly 'jakarta.annotation:jakarta.annotation-api:3.0.0'
+
+  errorprone 'com.google.errorprone:error_prone_core:2.38.0'
+  errorprone 'com.uber.nullaway:nullaway:0.12.7'
+
   testImplementation platform('org.junit:junit-bom:5.11.4')
   testImplementation 'org.junit.jupiter:junit-jupiter'
   testImplementation 'org.assertj:assertj-core:3.27.6'
 }
 
+import net.ltgt.gradle.errorprone.CheckSeverity
+
 tasks.withType(JavaCompile).configureEach {
   options.encoding = 'UTF-8'
+  options.errorprone {
+    check('NullAway', CheckSeverity.ERROR)
+    option('NullAway:AnnotatedPackages', 'dev.hanju.adapter')
+    option('NullAway:CustomNullableAnnotations', 'jakarta.annotation.Nullable')
+  }
+  if (name.toLowerCase().contains('test')) {
+    options.errorprone {
+      disable('NullAway')
+    }
+  }
 }
 
 tasks.withType(Javadoc).configureEach {

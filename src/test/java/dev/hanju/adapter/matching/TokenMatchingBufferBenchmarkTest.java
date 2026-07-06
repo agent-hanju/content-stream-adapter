@@ -7,9 +7,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import dev.hanju.adapter.buffer.TokenMatchingBuffer;
 import dev.hanju.adapter.matching.AhoCorasickTrie;
-import dev.hanju.adapter.matching.TokenMatchResult;
+import dev.hanju.adapter.matching.TokenMatchingResult;
 
 /**
  * TokenMatchingBuffer 성능 벤치마크 테스트
@@ -210,18 +209,18 @@ class TokenMatchingBufferBenchmarkTest {
     int matchCount = 0;
 
     for (String token : tokens) {
-      List<TokenMatchResult> results = matcher.accept(token);
-      for (TokenMatchResult result : results) {
-        if (result.type() == TokenMatchResult.Type.PATTERN) {
+      List<TokenMatchingResult> results = matcher.accept(token);
+      for (TokenMatchingResult result : results) {
+        if (result.type() == TokenMatchingResult.Type.PATTERN) {
           matchCount++;
         }
       }
     }
 
     // Flush remaining
-    List<TokenMatchResult> remaining = matcher.flush();
-    for (TokenMatchResult result : remaining) {
-      if (result.type() == TokenMatchResult.Type.PATTERN) {
+    List<TokenMatchingResult> remaining = matcher.flush();
+    for (TokenMatchingResult result : remaining) {
+      if (result.type() == TokenMatchingResult.Type.PATTERN) {
         matchCount++;
       }
     }
@@ -233,10 +232,10 @@ class TokenMatchingBufferBenchmarkTest {
     TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
     int matchCount = 0;
-    List<TokenMatchResult> results = new java.util.ArrayList<>(matcher.accept(token));
+    List<TokenMatchingResult> results = new java.util.ArrayList<>(matcher.accept(token));
     results.addAll(matcher.flush());
-    for (TokenMatchResult result : results) {
-      if (result.type() == TokenMatchResult.Type.PATTERN) {
+    for (TokenMatchingResult result : results) {
+      if (result.type() == TokenMatchingResult.Type.PATTERN) {
         matchCount++;
       }
     }
@@ -250,9 +249,9 @@ class TokenMatchingBufferBenchmarkTest {
 
     for (int i = 0; i < iterations; i++) {
       for (String part : splitPattern) {
-        List<TokenMatchResult> results = matcher.accept(part);
-        for (TokenMatchResult result : results) {
-          if (result.type() == TokenMatchResult.Type.PATTERN) {
+        List<TokenMatchingResult> results = matcher.accept(part);
+        for (TokenMatchingResult result : results) {
+          if (result.type() == TokenMatchingResult.Type.PATTERN) {
             matchCount++;
           }
         }

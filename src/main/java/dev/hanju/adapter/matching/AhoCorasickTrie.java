@@ -1,5 +1,6 @@
 package dev.hanju.adapter.matching;
 
+import jakarta.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -8,6 +9,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 
@@ -18,7 +20,7 @@ public class AhoCorasickTrie {
   private static final class State {
     private final int id;
     private final Map<Character, State> children = new HashMap<>();
-    private State failureLink = null;
+    private @Nullable State failureLink = null;
     private String matchedPattern = "";
     private int matchingLength = 0;
 
@@ -101,12 +103,14 @@ public class AhoCorasickTrie {
           failNode = failNode.failureLink;
         }
 
-        child.failureLink = (failNode != null)
-            ? failNode.children.get(c)
+        // failNode.children.containsKey(c)가 true인 상태로 루프를 빠져나왔으므로 get(c)는 non-null
+        final State resolvedFailureLink = (failNode != null)
+            ? Objects.requireNonNull(failNode.children.get(c))
             : root;
+        child.failureLink = resolvedFailureLink;
 
         // 같은 끝 위치의 여러 패턴 중 가장 긴 것만 report합니다.
-        final String suffixPattern = child.failureLink.matchedPattern;
+        final String suffixPattern = resolvedFailureLink.matchedPattern;
         if (suffixPattern.length() > child.matchedPattern.length()) {
           child.matchedPattern = suffixPattern;
         }
@@ -166,11 +170,12 @@ public class AhoCorasickTrie {
   public int nextState(final int stateId, final char c) {
     State current = getState(stateId);
     while (current != root && !current.children.containsKey(c)) {
-      current = current.failureLink;
+      // root가 아닌 모든 state는 failureLink가 non-null이도록 생성 시 보장됨
+      current = Objects.requireNonNull(current.failureLink);
     }
 
     if (current.children.containsKey(c)) {
-      return current.children.get(c).id;
+      return Objects.requireNonNull(current.children.get(c)).id;
     }
     return root.id;
   }

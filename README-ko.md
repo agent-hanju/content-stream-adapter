@@ -15,7 +15,7 @@ LLM 스트리밍 응답에서 XML-like 태그를 파싱하여 경로별로 구�
 
 - **O(1) 상태 전이**: HashMap 기반 빠른 전이 테이블
 - **토큰 경계 보존**: 원본 토큰의 분절점 유지
-- **Aho-Corasick 알고리즘**: O(n) 다중 패턴 매칭
+- **스트리밍 태그 토큰화**: 토큰 경계를 넘나드는 XML-like 태그를 O(n)으로 스캔
 - **Multi-depth 경로 지원**: `/section/subsection/content` 등의 계층 구조
 - **별칭(Alias) 지원**: 여러 태그 이름을 같은 경로로 매핑
 - **속성(Attribute) 지원**: 태그 속성 파싱 및 필터링 (예: `<cite id="ref">`)
@@ -26,6 +26,12 @@ LLM 스트리밍 응답에서 XML-like 태그를 파싱하여 경로별로 구�
 
 - Java 21 이상
 - 외부 런타임 의존성 없음 (zero-dependency)
+
+## 버전 정책
+
+이 프로젝트는 아직 `0.x`입니다 — 실사용을 통한 검증이 끝나기 전까지는 API(아래의 단독 사용 가능한
+빌딩 블록 포함)가 마이너 버전 사이에도 예고 없이 바뀔 수 있습니다. `1.0.0`부터 semver가 보장하는
+안정적인 호환성 범위가 시작됩니다.
 
 ## 설치
 
@@ -82,13 +88,12 @@ dependencies {
 ### 기본 사용
 
 스키마 정의와 XML 태그 바인딩은 별도 단계입니다: `TransitionSchema`는 추상적인 경로 구조만 정의하고,
-`XmlTagBinding`이 그 구조 위에 실제 태그 이름(과 속성)을 매핑합니다.
+`ContentStreamAdapter.from(...).bind(...)`가 어댑터를 만들면서 그 구조 위에 실제 태그 이름(과 속성)을 매핑합니다.
 
 ```java
 import dev.hanju.adapter.ContentStreamAdapter;
 import dev.hanju.adapter.transition.TransitionSchema;
-import dev.hanju.adapter.xml.XmlTagBinding;
-import dev.hanju.adapter.xml.XmlStreamOutput;
+import dev.hanju.adapter.ContentStreamResult;
 
 import java.util.List;
 
@@ -101,7 +106,7 @@ TransitionSchema schema = TransitionSchema.root()
     .path("result");
 
 // 2. 스키마 경로에 태그 이름 바인딩
-XmlTagBinding binding = XmlTagBinding.from(schema)
+ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
     .bind("/section").tag("section").and()
     .bind("/section/subsection").tag("subsection").and()
     .bind("/section/subsection/content").tag("content").and()
@@ -109,25 +114,23 @@ XmlTagBinding binding = XmlTagBinding.from(schema)
     .bind("/result").tag("result").and()
     .build();
 
-// 3. 어댑터 생성
-ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
 // 4. 토큰 스트리밍 처리
 String input = "Hello <section><subsection><content>world</content></subsection></section>!";
-List<XmlStreamOutput> outputs = adapter.feedToken(input);
+List<ContentStreamResult> outputs = adapter.feedToken(input);
 
 // 5. 결과 출력 (sealed 타입: Text / Enter / Exit)
-for (XmlStreamOutput output : outputs) {
+for (ContentStreamResult output : outputs) {
     switch (output) {
-        case XmlStreamOutput.Text t -> System.out.println("Text: " + t.content());
-        case XmlStreamOutput.Enter e -> System.out.println("Enter: " + e.path());
-        case XmlStreamOutput.Exit e -> System.out.println("Exit: " + e.path());
+        case ContentStreamResult.Text t -> System.out.println("Text: " + t.content());
+        case ContentStreamResult.Enter e -> System.out.println("Enter: " + e.path());
+        case ContentStreamResult.Exit e -> System.out.println("Exit: " + e.path());
     }
 }
 
 // 6. 스트림 종료 시 flush. 이때 어댑터도 함께 초기화되어(FSM 상태, 원문 누적기)
 //    동일 인스턴스를 새 스트림에 재사용할 수 있습니다.
-List<XmlStreamOutput> remaining = adapter.flush();
+List<ContentStreamResult> remaining = adapter.flush();
 ```
 
 ### 출력 예시
@@ -151,12 +154,11 @@ Text: !
 ```java
 TransitionSchema schema = TransitionSchema.root().path("cite");
 
-XmlTagBinding binding = XmlTagBinding.from(schema)
+ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
     .bind("/cite").tag("cite").alias("rag")
     .and()
     .build();
 
-ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
 // <cite>와 <rag> 모두 /cite 경로로 처리됨
 adapter.feedToken("Reference: <cite>source1</cite>");
@@ -170,16 +172,15 @@ adapter.feedToken("RAG: <rag>source2</rag>");
 ```java
 TransitionSchema schema = TransitionSchema.root().path("cite");
 
-XmlTagBinding binding = XmlTagBinding.from(schema)
+ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
     .bind("/cite").tag("cite").attr("id", "source")   // "id"와 "source"만 허용
     .and()
     .build();
 
-ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
-for (XmlStreamOutput output : adapter.feedToken(
+for (ContentStreamResult output : adapter.feedToken(
         "<cite id=\"ref1\" source=\"wiki\" extra=\"ignored\">content</cite>")) {
-    if (output instanceof XmlStreamOutput.Enter enter) {
+    if (output instanceof ContentStreamResult.Enter enter) {
         // enter.attributes()에는 허용된 속성만 포함: {id: "ref1", source: "wiki"}
         // "extra"는 필터링됨
         System.out.println("Cite 열림: " + enter.attributes());
@@ -198,7 +199,7 @@ for (XmlStreamOutput output : adapter.feedToken(
 
 ### Enter / Exit 이벤트
 
-`XmlStreamOutput`은 `Text`, `Enter`, `Exit` 세 가지 variant를 가진 sealed interface입니다.
+`ContentStreamResult`은 `Text`, `Enter`, `Exit` 세 가지 variant를 가진 sealed interface입니다.
 문자열 필드가 아니라 **타입**으로 태그 전이를 구분합니다:
 
 ```java
@@ -206,18 +207,17 @@ TransitionSchema schema = TransitionSchema.root()
     .path("cite")
     .path("think");
 
-XmlTagBinding binding = XmlTagBinding.from(schema)
+ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
     .bind("/cite").tag("cite").and()
     .bind("/think").tag("think").and()
     .build();
 
-ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
-for (XmlStreamOutput output : adapter.feedToken("Start <cite>source</cite> end")) {
+for (ContentStreamResult output : adapter.feedToken("Start <cite>source</cite> end")) {
     switch (output) {
-        case XmlStreamOutput.Enter e -> System.out.println("태그 열림: " + e.path());
-        case XmlStreamOutput.Exit e -> System.out.println("태그 닫힘: " + e.path());
-        case XmlStreamOutput.Text t -> System.out.println("[content] " + t.content());
+        case ContentStreamResult.Enter e -> System.out.println("태그 열림: " + e.path());
+        case ContentStreamResult.Exit e -> System.out.println("태그 닫힘: " + e.path());
+        case ContentStreamResult.Text t -> System.out.println("[content] " + t.content());
     }
 }
 ```
@@ -242,7 +242,6 @@ for (XmlStreamOutput output : adapter.feedToken("Start <cite>source</cite> end")
 `getRaw()`를 사용하여 언제든 누적된 원문 입력을 가져올 수 있습니다:
 
 ```java
-ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
 adapter.feedToken("안녕 ");
 adapter.feedToken("<cite>");
@@ -267,17 +266,16 @@ TransitionSchema schema = TransitionSchema.root()
     .path("think")
     .path("cite");
 
-XmlTagBinding binding = XmlTagBinding.from(schema)
+ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
     .bind("/think").tag("think").and()
     .bind("/cite").tag("cite").and()
     .build();
 
-ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
 // LLM 스트리밍 토큰 처리
 for (String token : llmStreamingTokens) {
-    for (XmlStreamOutput output : adapter.feedToken(token)) {
-        if (output instanceof XmlStreamOutput.Text text) {
+    for (ContentStreamResult output : adapter.feedToken(token)) {
+        if (output instanceof ContentStreamResult.Text text) {
             // 현재 경로별 실시간 처리
             switch (adapter.getCurrentPath()) {
                 case "/think" -> logThinkingProcess(text.content());
@@ -289,8 +287,8 @@ for (String token : llmStreamingTokens) {
 }
 
 // 스트림 종료 시 남은 버퍼 flush (어댑터도 함께 초기화됨)
-for (XmlStreamOutput output : adapter.flush()) {
-    if (output instanceof XmlStreamOutput.Text text) {
+for (ContentStreamResult output : adapter.flush()) {
+    if (output instanceof ContentStreamResult.Text text) {
         outputToUser(text.content());
     }
 }
@@ -305,25 +303,25 @@ public class StreamingConsumer {
     private final Consumer<String> onCitation;
 
     public StreamingConsumer(
-            XmlTagBinding binding,
+            ContentStreamAdapter adapter,
             Consumer<String> onUserContent,
             Consumer<String> onCitation) {
-        this.adapter = new ContentStreamAdapter(binding);
+        this.adapter = adapter;
         this.onUserContent = onUserContent;
         this.onCitation = onCitation;
     }
 
     public void accept(String token) {
-        for (XmlStreamOutput output : adapter.feedToken(token)) {
-            if (output instanceof XmlStreamOutput.Text text) {
+        for (ContentStreamResult output : adapter.feedToken(token)) {
+            if (output instanceof ContentStreamResult.Text text) {
                 dispatch(text.content());
             }
         }
     }
 
     public void end() {
-        for (XmlStreamOutput output : adapter.flush()) {
-            if (output instanceof XmlStreamOutput.Text text) {
+        for (ContentStreamResult output : adapter.flush()) {
+            if (output instanceof ContentStreamResult.Text text) {
                 dispatch(text.content());
             }
         }
@@ -340,7 +338,7 @@ public class StreamingConsumer {
 
 // 사용 예시
 StreamingConsumer consumer = new StreamingConsumer(
-    binding,
+    adapter,
     content -> sendToClient(content),      // 사용자에게 표시할 내용
     citation -> storeCitation(citation)     // 백그라운드 처리
 );
@@ -349,13 +347,120 @@ llmStream.forEach(consumer::accept);
 consumer.end();
 ```
 
+### 단독으로 쓸 수 있는 빌딩 블록
+
+`ContentStreamAdapter`는 그 자체로 완결된, 바로 쓸 수 있는 스트림 어댑터입니다 — 대부분의 사용자는 위 API만
+알면 됩니다. 다만 내부 구성 요소(`TokenBuffer`, `TokenMatchingBuffer`, `TransitionTable`, `XmlTagBuffer`)도
+공개(public)되어 있고, 아래에 보이는 것 이상으로는 서로 의존하지 않으므로, 어댑터 전체가 아니라 그중 한
+조각만(예: 태그 토큰화만, 경로 FSM만) 필요할 때 독립적으로 쓸 수 있습니다.
+
+**참고:** 공개 타입인 이상 라이브러리의 호환성 범위에 포함되지만, `ContentStreamAdapter`보다 더 저수준의
+빌딩 블록이라 내부 구현은 상대적으로 더 빠르게 바뀔 수 있습니다.
+
+#### TokenBuffer — 토큰 경계를 보존하는 char 버퍼
+
+```java
+import dev.hanju.adapter.matching.TokenBuffer;
+
+import java.util.List;
+
+TokenBuffer buffer = new TokenBuffer();
+buffer.addToken("Hello");
+buffer.addToken(" ");
+buffer.addToken("world");
+
+List<String> extracted = buffer.extract(5);   // ["Hello"]
+String remaining = buffer.getContent();       // " world"
+```
+
+#### TokenMatchingBuffer — 스트리밍 다중 패턴 매처
+
+```java
+import dev.hanju.adapter.matching.AhoCorasickTrie;
+import dev.hanju.adapter.matching.TokenMatchingBuffer;
+import dev.hanju.adapter.matching.TokenMatchingResult;
+
+import java.util.Set;
+
+AhoCorasickTrie trie = new AhoCorasickTrie(Set.of("<tag>", "</tag>"));
+TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
+
+for (TokenMatchingResult result : matcher.accept("Hello <tag>world</tag>!")) {
+    switch (result.type()) {
+        case TEXT -> System.out.println("Text: " + String.join("", result.tokens()));
+        case PATTERN -> System.out.println("Pattern: " + String.join("", result.tokens()));
+    }
+}
+for (TokenMatchingResult result : matcher.flush()) {
+    // 스트림 종료 시 남은 버퍼 결과 처리
+}
+```
+
+**출력:**
+
+```
+Text: Hello
+Pattern: <tag>
+Text: world
+Pattern: </tag>
+Text: !
+```
+
+#### TransitionTable — 경로 기반 FSM
+
+```java
+import dev.hanju.adapter.transition.TransitionSchema;
+import dev.hanju.adapter.transition.TransitionTable;
+
+TransitionSchema schema = TransitionSchema.root()
+    .path("section", section -> section.path("content"));
+
+TransitionTable table = new TransitionTable(schema.toPaths());
+
+String root = TransitionTable.getRoot();               // "/"
+String section = table.tryOpen(root, "section");       // "/section"
+String content = table.tryOpen(section, "content");    // "/section/content"
+String backToSection = table.tryClose(content);         // "/section"
+```
+
+#### XmlTagBuffer — 스트리밍 XML-like 태그 토큰화기
+
+```java
+import dev.hanju.adapter.xml.XmlFragment;
+import dev.hanju.adapter.xml.XmlTagBuffer;
+
+import java.util.List;
+
+XmlTagBuffer tagBuffer = new XmlTagBuffer(); // 필터 없음: 모든 태그를 토큰화
+List<XmlFragment> fragments = tagBuffer.feed("Hello <b>world</b>!");
+
+for (XmlFragment fragment : fragments) {
+    switch (fragment) {
+        case XmlFragment.Text t -> System.out.println("Text: " + t.raw());
+        case XmlFragment.Open o -> System.out.println("Open: " + o.name());
+        case XmlFragment.Close c -> System.out.println("Close: " + c.name());
+        case XmlFragment.SelfClosing s -> System.out.println("SelfClosing: " + s.name());
+    }
+}
+```
+
+**출력:**
+
+```
+Text: Hello
+Open: b
+Text: world
+Close: b
+Text: !
+```
+
 ## 아키텍처
 
 ### 핵심 컴포넌트
 
 1. **ContentStreamAdapter**: 메인 어댑터 클래스
 
-   - 토큰을 입력받아 `XmlStreamOutput` 리스트 반환
+   - 토큰을 입력받아 `ContentStreamResult` 리스트 반환
    - FSM 기반 상태 관리
    - `flush()`가 스트림을 마무리하고 어댑터를 재사용 가능한 상태로 초기화
 
@@ -364,12 +469,13 @@ consumer.end();
    - `.path(...)` 기반 Fluent API로 중첩 경로 정의
    - 순수 구조만 담당 — 태그 이름/별칭/속성은 별도로 바인딩
 
-3. **XmlTagBinding**: 스키마 경로에 XML 태그 이름을 매핑
+3. **ContentStreamAdapter builder**: 스키마 경로에 XML 태그 이름을 매핑
 
    - 바인딩된 경로마다 `.tag(name)`, `.alias(...)`, `.attr(...)`
-   - 태그 검출에 쓰이는 Aho-Corasick 패턴을 생성
+   - 추상 경로 스키마와 태그/별칭/속성 바인딩을 분리
+   - `TokenMatchingBuffer`가 사용할 target 태그 시작 패턴 생성
 
-4. **XmlStreamOutput**: sealed 출력 타입
+4. **ContentStreamResult**: sealed 출력 타입
 
    - `Text(content)`: 일반 텍스트 내용
    - `Enter(path, attributes)`: 태그 열림, `path`로 진입
@@ -377,25 +483,35 @@ consumer.end();
 
 5. **TransitionTable**: 상태 전이 테이블
 
-   - `TransitionNode` 트리를 사용한 O(1) 전이
+   - path `String`을 키로 사용하는 O(1) 전이 (내부적으로는 노드/트리 없이 `childOf`/`parentOf` 두 개의 flat map으로만 구현)
    - 별칭 호환 닫는 태그 지원 (`<rag>`로 열고 `</cite>`로 닫기 가능)
 
-6. **OpenTagParser**: 스트리밍 여는 태그 파서
-   - 상태 머신 기반 속성 파싱
-   - 여러 토큰에 걸친 따옴표 처리
-   - 큰따옴표와 작은따옴표 지원
+6. **TokenMatchingBuffer**: 스트리밍 target-pattern 선필터
+   - 바인딩된 태그 시작만 감지하고 non-target 토큰 경계 보존
+   - 무관한 XML-like 텍스트가 어댑터 구조로 파싱되지 않도록 보호
+
+7. **전이 사전 확인(peek)**: 감지된 태그를 파싱하기 전, `ContentStreamAdapter`가 태그 이름만으로
+   전이 가능 여부를 먼저 확인합니다. 현재 경로에서 전이 불가능한 태그는 태그 파서까지 가지 않고
+   그대로 텍스트로 출력됩니다 — 어차피 거부될 태그의 속성 파싱에 자원을 쓰지 않습니다.
+
+8. **XmlTagBuffer**: 스트리밍 XML-like 태그 파서
+   - 전이 사전 확인을 통과한 태그 조각만 파싱
+   - 타입별로 유효한 필드만 갖는 sealed `XmlFragment`(`Text` / `Open` / `SelfClosing` / `Close`) 반환
+   - 여러 토큰에 걸친 따옴표 속성값 처리
 
 ## 성능 특성
 
 - **상태 전이**: O(1) - HashMap lookup
-- **패턴 매칭**: O(n) - Aho-Corasick 알고리즘 (n = 입력 길이)
+- **target 패턴 매칭**: O(n) - 바인딩된 태그 시작에 대한 Aho-Corasick
+- **태그 파싱**: O(n) - 선별된 태그 후보에 대한 단일 패스
 - **토큰 처리**: 원본 토큰 경계 보존
 
 ## 제한사항
 
-- 자가 닫힘 태그(`<tag/>`)는 안전하게 파싱되지만 별도 시맨틱은 없습니다 — 일반 여는 태그처럼 처리됩니다
+- 자가 닫힘 태그(`<tag/>`)는 별도 시맨틱을 가지며, `ContentStreamAdapter`에서는 전이 가능할 때 Enter 후 Exit를 연속 출력합니다
 - 따옴표 없는 속성값(`id=1`)은 XML 비적합 문법이라 파싱은 하되 값은 버립니다 (값 없는 속성으로 기록)
-- 중첩된 같은 태그는 지원하지 않습니다 (`<a><a></a></a>`)
+- XML well-formedness 검증은 하지 않습니다. 태그 짝/중첩 정합성은 FSM 전이 가능 여부로만 처리됩니다
+- 미완성 태그 후보는 `flush()` 시 텍스트로 반환됩니다
 
 ## 라이선스
 
@@ -409,11 +525,16 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
 ### 0.2.0-SNAPSHOT (Current)
 
-- 아키텍처: `buffer`, `matching`, `transition`, `xml` 패키지로 재구성
-- 아키텍처: `XmlTagBinding` 도입 — 추상 경로 구조(`TransitionSchema`)와 실제 태그 이름/별칭/속성 분리
-- 아키텍처: `TaggedToken`을 sealed `XmlStreamOutput`(`Text` / `Enter` / `Exit`)으로 대체
+- 아키텍처: `matching`, `transition`, `xml` 패키지로 재구성 (이후 `buffer`는 `matching`으로 통합됨)
+- 아키텍처: `ContentStreamAdapter.from(...).bind(...)` 도입 — 추상 경로 구조(`TransitionSchema`)와 실제 태그 이름/별칭/속성 분리
+- 아키텍처: `TaggedToken`을 sealed `ContentStreamResult`(`Text` / `Enter` / `Exit`)으로 대체
+- 아키텍처: 여는 태그 전용 파싱을 `XmlTagBuffer` 기반 텍스트/태그 토큰화로 대체
+- 아키텍처: `TransitionTable`을 노드 트리 대신 flat map 두 개로 재구현
+- 아키텍처: `XmlFragment`를 "레코드 하나 + type 태그" 방식에서 sealed interface(`Text`/`Open`/`SelfClosing`/`Close`)로 전환하여 타입별로 유효한 필드만 갖도록 변경
+- 아키텍처: `TokenBuffer`/`TokenMatchingBuffer`를 `matching` 패키지로 이동, `TokenMatchResult`를 `TokenMatchingResult`로 개명
+- 성능: 태그 파싱 전에 전이 사전 확인(peek)을 추가 — 전이 불가능한 태그는 이름만으로 걸러내고 속성 파싱을 건너뜀
 - 기능: `flush()`가 어댑터를 초기화(FSM 상태, 원문 누적기)하여 새 스트림에 재사용 가능
-- 수정: 자가 닫힘 문법(`<tag/>`)이 더 이상 속성 파싱을 오염시키지 않음
+- 기능: 자가 닫힘 문법(`<tag/>`)에 별도 태그 시맨틱 추가
 - 수정: 따옴표 없는 속성값을 캡처하지 않고 버림 (XML 적합성)
 
 ### 0.1.6
@@ -421,8 +542,8 @@ MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 - 기능: 태그 속성 파싱 지원 (`<cite id="ref">`)
 - 기능: 스키마 기반 속성 화이트리스트 (`.attr("id", "source")`)
 - 기능: `TaggedToken.attributes()`로 파싱된 속성 접근
-- 아키텍처: `OpenTagParser` - 상태 머신 기반 스트리밍 속성 파서
-- 아키텍처: `TransitionTable.getAllowedAttributes()` - 속성 필터링
+- 아키텍처: 상태ful 태그 버퍼 기반 속성 파싱
+- 아키텍처: `ContentStreamAdapter` 내부 Enter 이벤트 속성 필터링
 
 ### 0.1.5
 

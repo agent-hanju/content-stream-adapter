@@ -4,8 +4,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import dev.hanju.adapter.transition.TransitionSchema;
-
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.*;
@@ -37,8 +35,7 @@ class TransitionSchemaTest {
             TransitionSchema schema = TransitionSchema.root();
 
             assertThat(schema).isNotNull();
-            assertThat(schema.getCurrentPath()).isEqualTo("/");
-            assertThat(schema.getPathCount()).isZero();
+            assertThat(schema.toPaths()).isEmpty();
         }
     }
 
@@ -101,7 +98,7 @@ class TransitionSchemaTest {
             TransitionSchema schema = TransitionSchema.root()
                 .path("think");
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactly("/think");
         }
 
@@ -113,7 +110,7 @@ class TransitionSchemaTest {
                 .path("cite")
                 .path("rag");
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder("/think", "/cite", "/rag");
         }
 
@@ -123,7 +120,7 @@ class TransitionSchemaTest {
             TransitionSchema schema = TransitionSchema.root()
                 .path("section");
 
-            assertThat(schema.getPathCount()).isEqualTo(1);
+            assertThat(schema.toPaths()).hasSize(1);
         }
     }
 
@@ -140,7 +137,7 @@ class TransitionSchemaTest {
                 .path("section", section -> section
                     .path("content"));
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder("/section", "/section/content");
         }
 
@@ -152,7 +149,7 @@ class TransitionSchemaTest {
                     .path("subsection", subsection -> subsection
                         .path("content")));
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder(
                 "/section",
                 "/section/subsection",
@@ -169,7 +166,7 @@ class TransitionSchemaTest {
                     .path("content")
                     .path("metadata"));
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder(
                 "/section",
                 "/section/title",
@@ -190,7 +187,7 @@ class TransitionSchemaTest {
                     .path("metadata"))
                 .path("cite");
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder(
                 "/section",
                 "/section/title",
@@ -215,14 +212,14 @@ class TransitionSchemaTest {
             TransitionSchema schema = TransitionSchema.root()
                 .path("cite");
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
 
             assertThatThrownBy(() -> paths.add("/new"))
                 .isInstanceOf(UnsupportedOperationException.class);
         }
 
         @Test
-        @DisplayName("getPathCount - 정확한 경로 수 반환")
+        @DisplayName("getAllPaths - 정확한 경로 수 반환")
         void testPathCount() {
             TransitionSchema schema = TransitionSchema.root()
                 .path("think")
@@ -230,7 +227,7 @@ class TransitionSchemaTest {
                 .path("section", section -> section
                     .path("content"));
 
-            assertThat(schema.getPathCount()).isEqualTo(4);
+            assertThat(schema.toPaths()).hasSize(4);
         }
     }
 
@@ -245,8 +242,7 @@ class TransitionSchemaTest {
         void testEmptySchema() {
             TransitionSchema schema = TransitionSchema.root();
 
-            assertThat(schema.getAllPaths()).isEmpty();
-            assertThat(schema.getPathCount()).isZero();
+            assertThat(schema.toPaths()).isEmpty();
         }
 
         @Test
@@ -259,7 +255,7 @@ class TransitionSchemaTest {
                             .path("d", d -> d
                                 .path("e")))));
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).contains("/a/b/c/d/e");
         }
 
@@ -272,7 +268,7 @@ class TransitionSchemaTest {
                 .path("article", article -> article
                     .path("title"));
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder(
                 "/section", "/section/title",
                 "/article", "/article/title"
@@ -293,7 +289,7 @@ class TransitionSchemaTest {
                 .path("thinking")
                 .path("answer");
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder("/thinking", "/answer");
         }
 
@@ -305,7 +301,7 @@ class TransitionSchemaTest {
                     .path("id")
                     .path("source"));
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder("/cite", "/cite/id", "/cite/source");
         }
 
@@ -321,7 +317,7 @@ class TransitionSchemaTest {
                         .path("content")))
                 .path("metadata");
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder(
                 "/section",
                 "/section/title",
@@ -345,7 +341,7 @@ class TransitionSchemaTest {
                     .path("summary")
                     .path("details"));
 
-            assertThat(schema.getAllPaths()).hasSize(7);
+            assertThat(schema.toPaths()).hasSize(7);
         }
 
         @Test
@@ -358,7 +354,7 @@ class TransitionSchemaTest {
                         .path("parameters", params -> params
                             .path("parameter"))));
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder(
                 "/function_calls",
                 "/function_calls/invoke",
@@ -378,7 +374,7 @@ class TransitionSchemaTest {
                     .path("metadata"))
                 .path("cite");
 
-            Set<String> paths = schema.getAllPaths();
+            Set<String> paths = schema.toPaths();
             assertThat(paths).containsExactlyInAnyOrder(
                 "/section",
                 "/section/subsection",

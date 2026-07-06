@@ -1,4 +1,4 @@
-package dev.hanju.adapter.xml;
+package dev.hanju.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -9,10 +9,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import dev.hanju.adapter.xml.XmlStreamOutput;
-
-@DisplayName("XmlStreamOutput 테스트")
-class XmlStreamOutputTest {
+@DisplayName("ContentStreamResult 테스트")
+class ContentStreamResultTest {
 
   @Nested
   @DisplayName("Text")
@@ -20,14 +18,14 @@ class XmlStreamOutputTest {
     @Test
     @DisplayName("content가 null이면 예외")
     void nullContentThrows() {
-      assertThatThrownBy(() -> new XmlStreamOutput.Text(null))
+      assertThatThrownBy(() -> new ContentStreamResult.Text(null))
           .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("정상 생성")
     void createsWithContent() {
-      XmlStreamOutput.Text text = new XmlStreamOutput.Text("hello");
+      ContentStreamResult.Text text = new ContentStreamResult.Text("hello");
       assertThat(text.content()).isEqualTo("hello");
     }
   }
@@ -38,21 +36,21 @@ class XmlStreamOutputTest {
     @Test
     @DisplayName("path가 null이면 예외")
     void nullPathThrows() {
-      assertThatThrownBy(() -> new XmlStreamOutput.Enter(null, Map.of()))
+      assertThatThrownBy(() -> new ContentStreamResult.Enter(null, Map.of()))
           .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("attributes가 null이면 빈 맵으로 대체")
     void nullAttributesDefaultsToEmptyMap() {
-      XmlStreamOutput.Enter enter = new XmlStreamOutput.Enter("/cite", null);
+      ContentStreamResult.Enter enter = new ContentStreamResult.Enter("/cite", null);
       assertThat(enter.attributes()).isEmpty();
     }
 
     @Test
     @DisplayName("단일 인자 생성자 - 속성 없는 Enter")
     void singleArgConstructorDefaultsToEmptyMap() {
-      XmlStreamOutput.Enter enter = new XmlStreamOutput.Enter("/cite");
+      ContentStreamResult.Enter enter = new ContentStreamResult.Enter("/cite");
       assertThat(enter.path()).isEqualTo("/cite");
       assertThat(enter.attributes()).isEmpty();
     }
@@ -64,14 +62,14 @@ class XmlStreamOutputTest {
     @Test
     @DisplayName("path가 null이면 예외")
     void nullPathThrows() {
-      assertThatThrownBy(() -> new XmlStreamOutput.Exit(null))
+      assertThatThrownBy(() -> new ContentStreamResult.Exit(null))
           .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("정상 생성")
     void createsWithPath() {
-      XmlStreamOutput.Exit exit = new XmlStreamOutput.Exit("/cite");
+      ContentStreamResult.Exit exit = new ContentStreamResult.Exit("/cite");
       assertThat(exit.path()).isEqualTo("/cite");
     }
   }

@@ -10,9 +10,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import dev.hanju.adapter.buffer.TokenMatchingBuffer;
 import dev.hanju.adapter.matching.AhoCorasickTrie;
-import dev.hanju.adapter.matching.TokenMatchResult;
+import dev.hanju.adapter.matching.TokenMatchingResult;
 
 /**
  * TokenMatchingBuffer 테스트
@@ -35,7 +34,7 @@ import dev.hanju.adapter.matching.TokenMatchResult;
 class TokenMatchingBufferTest {
 
   /** 토큰 추가 후 매칭 결과 반환하는 헬퍼 */
-  private static List<TokenMatchResult> feedAndMatch(TokenMatchingBuffer matcher, String token) {
+  private static List<TokenMatchingResult> feedAndMatch(TokenMatchingBuffer matcher, String token) {
     return matcher.accept(token);
   }
 
@@ -89,7 +88,7 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("test"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results = feedAndMatch(matcher, "");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "");
 
       assertThat(results).isEmpty();
     }
@@ -107,10 +106,10 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("hello"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results = feedAndMatch(matcher, "hello");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "hello");
 
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.getFirst().tokens())).isEqualTo("hello");
     }
 
@@ -121,15 +120,15 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "hello "는 패턴이 아니므로 즉시 TextTokenResult로 반환
-      List<TokenMatchResult> r1 = feedAndMatch(matcher, "hello ");
+      List<TokenMatchingResult> r1 = feedAndMatch(matcher, "hello ");
       assertThat(r1).hasSize(1);
-      assertThat(r1.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(r1.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(r1.getFirst().tokens()).containsExactly("hello ");
 
       // "world"가 패턴 검출, prefix는 이미 flush됨
-      List<TokenMatchResult> r2 = feedAndMatch(matcher, "world");
+      List<TokenMatchingResult> r2 = feedAndMatch(matcher, "world");
       assertThat(r2).hasSize(1);
-      assertThat(r2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", r2.getFirst().tokens())).isEqualTo("world");
     }
 
@@ -140,15 +139,15 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "he" 검출
-      List<TokenMatchResult> results1 = feedAndMatch(matcher, "he");
+      List<TokenMatchingResult> results1 = feedAndMatch(matcher, "he");
       assertThat(results1).hasSize(1);
-      assertThat(results1.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results1.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results1.getFirst().tokens())).isEqualTo("he");
 
       // "she" 검출
-      List<TokenMatchResult> results2 = feedAndMatch(matcher, "she");
+      List<TokenMatchingResult> results2 = feedAndMatch(matcher, "she");
       assertThat(results2).hasSize(1);
-      assertThat(results2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results2.getFirst().tokens())).isEqualTo("she");
     }
 
@@ -159,11 +158,11 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("he", "she"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results = feedAndMatch(matcher, "she");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "she");
 
       // "she"가 더 길므로 "she"가 우선 검출
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.getFirst().tokens())).isEqualTo("she");
     }
 
@@ -174,13 +173,13 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "hel"은 "hello"의 prefix일 수 있으므로 버퍼에 유지
-      List<TokenMatchResult> r1 = feedAndMatch(matcher, "hel");
+      List<TokenMatchingResult> r1 = feedAndMatch(matcher, "hel");
       assertThat(r1).isEmpty();
 
       // "lo" 추가 시 "hello" 패턴 검출
-      List<TokenMatchResult> r2 = feedAndMatch(matcher, "lo");
+      List<TokenMatchingResult> r2 = feedAndMatch(matcher, "lo");
       assertThat(r2).hasSize(1);
-      assertThat(r2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", r2.getFirst().tokens())).isEqualTo("hello");
     }
   }
@@ -198,10 +197,10 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "hello"는 "<tag>"의 prefix가 될 수 없으므로 즉시 flush
-      List<TokenMatchResult> results = feedAndMatch(matcher, "hello");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "hello");
 
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(results.getFirst().tokens()).containsExactly("hello");
       assertThat(matcher.flush()).isEmpty();
     }
@@ -213,12 +212,12 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "<t"는 "<tag>"의 prefix일 수 있으므로 버퍼에 유지
-      List<TokenMatchResult> results = feedAndMatch(matcher, "<t");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "<t");
 
       assertThat(results).isEmpty();
-      List<TokenMatchResult> remaining = matcher.flush();
+      List<TokenMatchingResult> remaining = matcher.flush();
       assertThat(remaining).hasSize(1);
-      assertThat(remaining.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(remaining.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(remaining.getFirst().tokens()).containsExactly("<t");
     }
 
@@ -232,11 +231,11 @@ class TokenMatchingBufferTest {
       feedAndMatch(matcher, "<com");
       feedAndMatch(matcher, "pl"); // "<compl"도 prefix 가능성
 
-      List<TokenMatchResult> remaining = matcher.flush();
+      List<TokenMatchingResult> remaining = matcher.flush();
 
       // 패턴 없으므로 TextTokenResult로 반환, 토큰 경계 보존
       assertThat(remaining).hasSize(1);
-      assertThat(remaining.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(remaining.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(remaining.get(0).tokens()).containsExactly("<com", "pl");
       assertThat(matcher.flush()).isEmpty();
     }
@@ -249,9 +248,9 @@ class TokenMatchingBufferTest {
 
       feedAndMatch(matcher, "<t");
 
-      List<TokenMatchResult> remaining = matcher.flush();
+      List<TokenMatchingResult> remaining = matcher.flush();
       assertThat(remaining).hasSize(1);
-      assertThat(remaining.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(remaining.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(remaining.getFirst().tokens()).containsExactly("<t");
     }
   }
@@ -268,13 +267,13 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("aa"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results1 = feedAndMatch(matcher, "aa");
+      List<TokenMatchingResult> results1 = feedAndMatch(matcher, "aa");
       assertThat(results1).hasSize(1);
-      assertThat(results1.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results1.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
 
-      List<TokenMatchResult> results2 = feedAndMatch(matcher, "aa");
+      List<TokenMatchingResult> results2 = feedAndMatch(matcher, "aa");
       assertThat(results2).hasSize(1);
-      assertThat(results2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
     }
 
     @Test
@@ -285,10 +284,10 @@ class TokenMatchingBufferTest {
 
       // 긴 텍스트 입력 - 패턴 가능성 없으므로 즉시 flush
       String longText = "a".repeat(100);
-      List<TokenMatchResult> results = feedAndMatch(matcher, longText);
+      List<TokenMatchingResult> results = feedAndMatch(matcher, longText);
 
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(results.getFirst().tokens()).containsExactly(longText);
     }
 
@@ -299,12 +298,12 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "안녕하세요" → "안녕" 검출, "하세요"는 패턴 prefix 아니므로 flush
-      List<TokenMatchResult> results = feedAndMatch(matcher, "안녕하세요");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "안녕하세요");
 
       assertThat(results).hasSize(2);
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.get(0).tokens())).isEqualTo("안녕");
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(results.get(1).tokens()).containsExactly("하세요");
 
       assertThat(matcher.flush()).isEmpty();
@@ -316,10 +315,10 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("<tag>"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results = feedAndMatch(matcher, "<tag>");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "<tag>");
 
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.getFirst().tokens())).isEqualTo("<tag>");
     }
   }
@@ -336,16 +335,16 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("<result>", "</result>"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results1 = feedAndMatch(matcher, "<result>");
+      List<TokenMatchingResult> results1 = feedAndMatch(matcher, "<result>");
       assertThat(results1).hasSize(1);
-      assertThat(results1.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results1.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results1.getFirst().tokens())).isEqualTo("<result>");
 
       feedAndMatch(matcher, "content");
 
-      List<TokenMatchResult> results2 = feedAndMatch(matcher, "</result>");
+      List<TokenMatchingResult> results2 = feedAndMatch(matcher, "</result>");
       assertThat(results2).hasSize(1);
-      assertThat(results2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results2.getFirst().tokens())).isEqualTo("</result>");
     }
 
@@ -356,12 +355,12 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // 태그가 여러 토큰에 걸쳐 입력됨 (실제 LLM 스트리밍)
-      List<TokenMatchResult> r1 = feedAndMatch(matcher, "<ans");
+      List<TokenMatchingResult> r1 = feedAndMatch(matcher, "<ans");
       assertThat(r1).isEmpty();
 
-      List<TokenMatchResult> r2 = feedAndMatch(matcher, "wer>");
+      List<TokenMatchingResult> r2 = feedAndMatch(matcher, "wer>");
       assertThat(r2).hasSize(1);
-      assertThat(r2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", r2.getFirst().tokens())).isEqualTo("<answer>");
     }
 
@@ -372,7 +371,7 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // 실제 LLM 스트리밍 토큰 시뮬레이션
-      List<TokenMatchResult> allResults = new ArrayList<>();
+      List<TokenMatchingResult> allResults = new ArrayList<>();
       String[] tokens = { "<think", "ing>", "Let me ", "think", "...</", "think", "ing>" };
 
       for (String token : tokens) {
@@ -381,7 +380,7 @@ class TokenMatchingBufferTest {
 
       // 두 태그 모두 검출되어야 함
       long detectedCount = allResults.stream()
-          .filter(r -> r.type() == TokenMatchResult.Type.PATTERN)
+          .filter(r -> r.type() == TokenMatchingResult.Type.PATTERN)
           .count();
       assertThat(detectedCount).isEqualTo(2);
     }
@@ -395,28 +394,28 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // 복잡한 응답 시뮬레이션
-      List<TokenMatchResult> r1 = feedAndMatch(matcher, "<search>");
+      List<TokenMatchingResult> r1 = feedAndMatch(matcher, "<search>");
       feedAndMatch(matcher, "query");
-      List<TokenMatchResult> r2 = feedAndMatch(matcher, "</search>");
-      List<TokenMatchResult> r3 = feedAndMatch(matcher, "<answer>");
+      List<TokenMatchingResult> r2 = feedAndMatch(matcher, "</search>");
+      List<TokenMatchingResult> r3 = feedAndMatch(matcher, "<answer>");
       feedAndMatch(matcher, "response");
-      List<TokenMatchResult> r4 = feedAndMatch(matcher, "</answer>");
+      List<TokenMatchingResult> r4 = feedAndMatch(matcher, "</answer>");
 
       // 4개 태그 모두 검출 확인
       assertThat(r1).hasSize(1);
-      assertThat(r1.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r1.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", r1.getFirst().tokens())).isEqualTo("<search>");
 
       assertThat(r2).hasSize(1);
-      assertThat(r2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", r2.getFirst().tokens())).isEqualTo("</search>");
 
       assertThat(r3).hasSize(1);
-      assertThat(r3.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r3.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", r3.getFirst().tokens())).isEqualTo("<answer>");
 
       assertThat(r4).hasSize(1);
-      assertThat(r4.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r4.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", r4.getFirst().tokens())).isEqualTo("</answer>");
     }
 
@@ -430,11 +429,11 @@ class TokenMatchingBufferTest {
       feedAndMatch(matcher, "<inner>");
       feedAndMatch(matcher, "content");
       feedAndMatch(matcher, "</inner>");
-      List<TokenMatchResult> results = feedAndMatch(matcher, "</outer>");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "</outer>");
 
       // 마지막 태그 검출 확인
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.getFirst().tokens())).isEqualTo("</outer>");
     }
 
@@ -449,11 +448,11 @@ class TokenMatchingBufferTest {
       feedAndMatch(matcher, "t");
       feedAndMatch(matcher, "a");
       feedAndMatch(matcher, "g");
-      List<TokenMatchResult> results = feedAndMatch(matcher, ">");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, ">");
 
       // 마지막 토큰에서 패턴 검출
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.getFirst().tokens())).isEqualTo("<tag>");
     }
 
@@ -464,21 +463,21 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // 일반 텍스트가 여러 토큰으로 입력됨
-      List<TokenMatchResult> r1 = feedAndMatch(matcher, "Hello");
-      List<TokenMatchResult> r2 = feedAndMatch(matcher, " ");
-      List<TokenMatchResult> r3 = feedAndMatch(matcher, "World");
+      List<TokenMatchingResult> r1 = feedAndMatch(matcher, "Hello");
+      List<TokenMatchingResult> r2 = feedAndMatch(matcher, " ");
+      List<TokenMatchingResult> r3 = feedAndMatch(matcher, "World");
 
       // 토큰 경계가 보존되어 반환되어야 함
       assertThat(r1).hasSize(1);
-      assertThat(r1.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(r1.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(r1.getFirst().tokens()).containsExactly("Hello");
 
       assertThat(r2).hasSize(1);
-      assertThat(r2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(r2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(r2.getFirst().tokens()).containsExactly(" ");
 
       assertThat(r3).hasSize(1);
-      assertThat(r3.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(r3.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(r3.getFirst().tokens()).containsExactly("World");
     }
 
@@ -489,12 +488,12 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "텍스트"와 "<tag>"가 한 토큰에 함께 입력됨 → 두 결과가 한번에 반환
-      List<TokenMatchResult> results = feedAndMatch(matcher, "텍스트<tag>");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "텍스트<tag>");
 
       assertThat(results).hasSize(2);
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(results.get(0).tokens()).containsExactly("텍스트");
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.get(1).tokens())).isEqualTo("<tag>");
     }
 
@@ -505,18 +504,18 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "텍스트1"과 "텍스트2"는 패턴이 아니므로 flush
-      List<TokenMatchResult> r1 = feedAndMatch(matcher, "텍스트1");
+      List<TokenMatchingResult> r1 = feedAndMatch(matcher, "텍스트1");
       assertThat(r1).hasSize(1);
-      assertThat(r1.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(r1.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
 
-      List<TokenMatchResult> r2 = feedAndMatch(matcher, "텍스트2");
+      List<TokenMatchingResult> r2 = feedAndMatch(matcher, "텍스트2");
       assertThat(r2).hasSize(1);
-      assertThat(r2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(r2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
 
       // "<tag>" 검출
-      List<TokenMatchResult> r3 = feedAndMatch(matcher, "<tag>");
+      List<TokenMatchingResult> r3 = feedAndMatch(matcher, "<tag>");
       assertThat(r3).hasSize(1);
-      assertThat(r3.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r3.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
     }
 
     @Test
@@ -526,12 +525,12 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "<tag>"와 "텍스트"가 한 토큰에 함께 입력됨 → 두 결과 모두 반환
-      List<TokenMatchResult> results = feedAndMatch(matcher, "<tag>텍스트");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "<tag>텍스트");
 
       // 패턴과 텍스트 모두 반환
       assertThat(results).hasSize(2);
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(results.get(1).tokens()).containsExactly("텍스트");
     }
   }
@@ -549,10 +548,10 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "shedd" 완성 → 더 긴 패턴 "shedd" 검출
-      List<TokenMatchResult> results = feedAndMatch(matcher, "shedd");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "shedd");
 
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.getFirst().tokens())).isEqualTo("shedd");
     }
 
@@ -563,12 +562,12 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "shedg" - "shedd" 미완성, "she" 검출, "dg"는 패턴 prefix 아니므로 flush
-      List<TokenMatchResult> results = feedAndMatch(matcher, "shedg");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "shedg");
 
       assertThat(results).hasSize(2);
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.get(0).tokens())).isEqualTo("she");
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(results.get(1).tokens()).containsExactly("dg");
 
       assertThat(matcher.flush()).isEmpty();
@@ -581,13 +580,13 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "shed" 입력 - "she" 발견하지만 대기
-      List<TokenMatchResult> results1 = feedAndMatch(matcher, "shed");
+      List<TokenMatchingResult> results1 = feedAndMatch(matcher, "shed");
       assertThat(results1).isEmpty();
 
       // "d" 추가 - "shedd" 완성
-      List<TokenMatchResult> results2 = feedAndMatch(matcher, "d");
+      List<TokenMatchingResult> results2 = feedAndMatch(matcher, "d");
       assertThat(results2).hasSize(1);
-      assertThat(results2.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results2.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results2.getFirst().tokens())).isEqualTo("shedd");
     }
 
@@ -598,15 +597,15 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "shed" 입력 - "she" 발견하지만 대기
-      List<TokenMatchResult> results1 = feedAndMatch(matcher, "shed");
+      List<TokenMatchingResult> results1 = feedAndMatch(matcher, "shed");
       assertThat(results1).isEmpty();
 
       // "g" 추가 - 전이 실패, "she" 반환, "dg"는 패턴 prefix 아니므로 flush
-      List<TokenMatchResult> results2 = feedAndMatch(matcher, "g");
+      List<TokenMatchingResult> results2 = feedAndMatch(matcher, "g");
       assertThat(results2).hasSize(2);
-      assertThat(results2.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results2.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results2.get(0).tokens())).isEqualTo("she");
-      assertThat(results2.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results2.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(results2.get(1).tokens()).containsExactly("d", "g");
 
       assertThat(matcher.flush()).isEmpty();
@@ -619,10 +618,10 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "abc" 완성 → 가장 긴 패턴 검출
-      List<TokenMatchResult> results = feedAndMatch(matcher, "abc");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "abc");
 
       assertThat(results).hasSize(1);
-      assertThat(results.getFirst()).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.getFirst()).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.getFirst().tokens())).isEqualTo("abc");
     }
 
@@ -633,23 +632,23 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // "abx" → "ab" 검출, "x"는 패턴 prefix 아니므로 flush
-      List<TokenMatchResult> results = feedAndMatch(matcher, "abx");
+      List<TokenMatchingResult> results = feedAndMatch(matcher, "abx");
 
       assertThat(results).hasSize(2);
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.get(0).tokens())).isEqualTo("ab");
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(results.get(1).tokens()).containsExactly("x");
 
       assertThat(matcher.flush()).isEmpty();
     }
   }
 
-  // ==================== 8. Maximal Munch 버그 재현 테스트 ====================
+  // ==================== 8. Leftmost-Longest 버그 재현 테스트 ====================
 
   @Nested
-  @DisplayName("Maximal Munch 버그 재현 테스트")
-  class MaximalMunchBugReproduction {
+  @DisplayName("Leftmost-Longest 버그 재현 테스트")
+  class LeftmostLongestBugReproduction {
 
     @Test
     @DisplayName("Bug #1: failure link를 통한 매칭이 이전 매칭을 덮어쓰면 안 됨")
@@ -669,17 +668,17 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("aa", "aaab"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results = new ArrayList<>(matcher.accept("aaac"));
+      List<TokenMatchingResult> results = new ArrayList<>(matcher.accept("aaac"));
       results.addAll(matcher.flush());
 
       assertThat(results).hasSize(2);
 
       // 첫 번째: "aa" 패턴
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.get(0).tokens())).isEqualTo("aa");
 
       // 두 번째: "ac" 텍스트
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(String.join("", results.get(1).tokens())).isEqualTo("ac");
     }
 
@@ -695,15 +694,15 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("ab", "bcd"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results = new ArrayList<>(matcher.accept("abce"));
+      List<TokenMatchingResult> results = new ArrayList<>(matcher.accept("abce"));
       results.addAll(matcher.flush());
 
       assertThat(results).hasSize(2);
 
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.get(0).tokens())).isEqualTo("ab");
 
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(String.join("", results.get(1).tokens())).isEqualTo("ce");
     }
 
@@ -719,15 +718,15 @@ class TokenMatchingBufferTest {
       AhoCorasickTrie trie = new AhoCorasickTrie(List.of("a", "ab", "abc"));
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
-      List<TokenMatchResult> results = new ArrayList<>(matcher.accept("abcd"));
+      List<TokenMatchingResult> results = new ArrayList<>(matcher.accept("abcd"));
       results.addAll(matcher.flush());
 
       assertThat(results).hasSize(2);
 
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.get(0).tokens())).isEqualTo("abc");
 
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(String.join("", results.get(1).tokens())).isEqualTo("d");
     }
 
@@ -744,15 +743,15 @@ class TokenMatchingBufferTest {
 
       assertThat(trie.getMaxPatternLength()).isEqualTo(3);
 
-      List<TokenMatchResult> results = new ArrayList<>(matcher.accept("abcx"));
+      List<TokenMatchingResult> results = new ArrayList<>(matcher.accept("abcx"));
       results.addAll(matcher.flush());
 
       assertThat(results).hasSize(2);
 
-      assertThat(results.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(results.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", results.get(0).tokens())).isEqualTo("abc");
 
-      assertThat(results.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(results.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(String.join("", results.get(1).tokens())).isEqualTo("x");
     }
 
@@ -765,21 +764,21 @@ class TokenMatchingBufferTest {
       TokenMatchingBuffer matcher = new TokenMatchingBuffer(trie);
 
       // 토큰 1: "ab" - 버퍼에 유지
-      List<TokenMatchResult> r1 = feedAndMatch(matcher, "ab");
+      List<TokenMatchingResult> r1 = feedAndMatch(matcher, "ab");
       assertThat(r1).isEmpty();
 
       // 토큰 2: "c" - "abc" 완성되지만 "abcd" 가능성 대기
-      List<TokenMatchResult> r2 = feedAndMatch(matcher, "c");
+      List<TokenMatchingResult> r2 = feedAndMatch(matcher, "c");
       assertThat(r2).isEmpty();
 
       // 토큰 3: "x" - "abcd" 불가, "abc" 확정
-      List<TokenMatchResult> r3 = feedAndMatch(matcher, "x");
+      List<TokenMatchingResult> r3 = feedAndMatch(matcher, "x");
       assertThat(r3).hasSize(2);
 
-      assertThat(r3.get(0)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(r3.get(0)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", r3.get(0).tokens())).isEqualTo("abc");
 
-      assertThat(r3.get(1)).extracting(TokenMatchResult::type).isEqualTo(TokenMatchResult.Type.TEXT);
+      assertThat(r3.get(1)).extracting(TokenMatchingResult::type).isEqualTo(TokenMatchingResult.Type.TEXT);
       assertThat(String.join("", r3.get(1).tokens())).isEqualTo("x");
     }
 
@@ -792,20 +791,20 @@ class TokenMatchingBufferTest {
 
       assertThat(first.accept("ab")).isEmpty();
 
-      List<TokenMatchResult> secondResults = new ArrayList<>(second.accept("abc"));
+      List<TokenMatchingResult> secondResults = new ArrayList<>(second.accept("abc"));
       secondResults.addAll(second.flush());
 
       assertThat(secondResults).hasSize(1);
-      assertThat(secondResults.get(0)).extracting(TokenMatchResult::type)
-          .isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(secondResults.get(0)).extracting(TokenMatchingResult::type)
+          .isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", secondResults.get(0).tokens())).isEqualTo("abc");
 
-      List<TokenMatchResult> firstResults = new ArrayList<>(first.accept("c"));
+      List<TokenMatchingResult> firstResults = new ArrayList<>(first.accept("c"));
       firstResults.addAll(first.flush());
 
       assertThat(firstResults).hasSize(1);
-      assertThat(firstResults.get(0)).extracting(TokenMatchResult::type)
-          .isEqualTo(TokenMatchResult.Type.PATTERN);
+      assertThat(firstResults.get(0)).extracting(TokenMatchingResult::type)
+          .isEqualTo(TokenMatchingResult.Type.PATTERN);
       assertThat(String.join("", firstResults.get(0).tokens())).isEqualTo("abc");
     }
   }

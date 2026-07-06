@@ -12,8 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import dev.hanju.adapter.ContentStreamAdapter;
 import dev.hanju.adapter.transition.TransitionSchema;
-import dev.hanju.adapter.xml.XmlStreamOutput;
-import dev.hanju.adapter.xml.XmlTagBinding;
+import dev.hanju.adapter.ContentStreamResult;
 
 /**
  * ContentStreamAdapter 통합 테스트
@@ -25,8 +24,8 @@ class ContentStreamAdapterTest {
 
   // ==================== Helper Methods ====================
 
-  private XmlTagBinding createBinding(TransitionSchema schema, String... paths) {
-    XmlTagBinding.Builder builder = XmlTagBinding.from(schema);
+  private ContentStreamAdapter createAdapter(TransitionSchema schema, String... paths) {
+    ContentStreamAdapter.Builder builder = ContentStreamAdapter.from(schema.toPaths());
     for (String path : paths) {
       String segment = path.substring(path.lastIndexOf('/') + 1);
       builder.bind(path).tag(segment).and();
@@ -46,9 +45,7 @@ class ContentStreamAdapterTest {
       TransitionSchema schema = TransitionSchema.root()
           .path("thinking")
           .path("answer");
-      XmlTagBinding binding = createBinding(schema, "/thinking", "/answer");
-
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/thinking", "/answer");
 
       assertThat(adapter).isNotNull();
       assertThat(adapter.getCurrentPath()).isEqualTo("/");
@@ -57,9 +54,9 @@ class ContentStreamAdapterTest {
     @Test
     @DisplayName("null 바인딩 - 예외")
     void testNullBinding() {
-      assertThatThrownBy(() -> new ContentStreamAdapter(null))
+      assertThatThrownBy(() -> ContentStreamAdapter.from(null).build())
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("Binding cannot be null");
+          .hasMessageContaining("allPaths cannot be null");
     }
 
     @Test
@@ -67,8 +64,7 @@ class ContentStreamAdapterTest {
     void testInitialStateIsRoot() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
       assertThat(adapter.getCurrentPath()).isEqualTo("/");
     }
@@ -85,8 +81,7 @@ class ContentStreamAdapterTest {
     void testNullToken() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
       assertThatThrownBy(() -> adapter.feedToken(null))
           .isInstanceOf(IllegalArgumentException.class);
@@ -97,10 +92,9 @@ class ContentStreamAdapterTest {
     void testEmptyToken() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
-      List<XmlStreamOutput> result = adapter.feedToken("");
+      List<ContentStreamResult> result = adapter.feedToken("");
 
       assertThat(result).isEmpty();
     }
@@ -117,14 +111,13 @@ class ContentStreamAdapterTest {
     void testPlainText() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("Hello world");
+      List<ContentStreamResult> outputs = adapter.feedToken("Hello world");
 
       assertThat(outputs).hasSize(1);
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs.get(0)).content()).isEqualTo("Hello world");
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs.get(0)).content()).isEqualTo("Hello world");
     }
 
     @Test
@@ -132,14 +125,13 @@ class ContentStreamAdapterTest {
     void testValidTag() {
       TransitionSchema schema = TransitionSchema.root()
           .path("answer");
-      XmlTagBinding binding = createBinding(schema, "/answer");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/answer");
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("<answer>");
+      List<ContentStreamResult> outputs = adapter.feedToken("<answer>");
 
       assertThat(outputs).hasSize(1);
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
-      assertThat(((XmlStreamOutput.Enter) outputs.get(0)).path()).isEqualTo("/answer");
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
+      assertThat(((ContentStreamResult.Enter) outputs.get(0)).path()).isEqualTo("/answer");
       assertThat(adapter.getCurrentPath()).isEqualTo("/answer");
     }
 
@@ -148,14 +140,70 @@ class ContentStreamAdapterTest {
     void testInvalidTag() {
       TransitionSchema schema = TransitionSchema.root()
           .path("answer");
-      XmlTagBinding binding = createBinding(schema, "/answer");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/answer");
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("<invalid>");
+      List<ContentStreamResult> outputs = adapter.feedToken("<invalid>");
 
       assertThat(outputs).hasSize(1);
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs.get(0)).content()).isEqualTo("<invalid>");
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs.get(0)).content()).isEqualTo("<invalid>");
+      assertThat(adapter.getCurrentPath()).isEqualTo("/");
+    }
+
+    @Test
+    @DisplayName("관심 없는 XML-like 태그는 토큰 경계 보존")
+    void testNonTargetXmlLikeTextPreservesTokenBoundaries() {
+      TransitionSchema schema = TransitionSchema.root()
+          .path("answer");
+      ContentStreamAdapter adapter = createAdapter(schema, "/answer");
+
+      List<ContentStreamResult> outputs1 = adapter.feedToken("<invalid");
+      List<ContentStreamResult> outputs2 = adapter.feedToken(">text");
+
+      assertThat(outputs1).containsExactly(new ContentStreamResult.Text("<invalid"));
+      assertThat(outputs2).containsExactly(new ContentStreamResult.Text(">text"));
+      assertThat(adapter.getCurrentPath()).isEqualTo("/");
+    }
+
+    @Test
+    @DisplayName("관심 태그 이름의 prefix여도 이름 경계가 다르면 토큰 경계 보존")
+    void testNonTargetPrefixPreservesTokenBoundaries() {
+      TransitionSchema schema = TransitionSchema.root()
+          .path("answer");
+      ContentStreamAdapter adapter = createAdapter(schema, "/answer");
+
+      List<ContentStreamResult> outputs1 = adapter.feedToken("<answer");
+      List<ContentStreamResult> outputs2 = adapter.feedToken("X>text");
+
+      assertThat(outputs1).isEmpty();
+      assertThat(outputs2).containsExactly(
+          new ContentStreamResult.Text("<answer"),
+          new ContentStreamResult.Text("X>text"));
+      assertThat(adapter.getCurrentPath()).isEqualTo("/");
+    }
+
+    @Test
+    @DisplayName("자가 닫힘 태그 - Enter 후 Exit 연속 출력")
+    void testSelfClosingTag() {
+      TransitionSchema schema = TransitionSchema.root()
+          .path("cite");
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
+          .bind("/cite").tag("cite").attr("id")
+          .build();
+
+      List<ContentStreamResult> outputs = adapter.feedToken("<cite id=\"ref\"/>tail");
+
+      assertThat(outputs).hasSize(3);
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
+      ContentStreamResult.Enter enter = (ContentStreamResult.Enter) outputs.get(0);
+      assertThat(enter.path()).isEqualTo("/cite");
+      assertThat(enter.attributes()).containsEntry("id", "ref");
+
+      assertThat(outputs.get(1)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) outputs.get(1)).path()).isEqualTo("/cite");
+
+      assertThat(outputs.get(2)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs.get(2)).content()).isEqualTo("tail");
       assertThat(adapter.getCurrentPath()).isEqualTo("/");
     }
 
@@ -164,16 +212,15 @@ class ContentStreamAdapterTest {
     void testTagAndTextMixed() {
       TransitionSchema schema = TransitionSchema.root()
           .path("answer");
-      XmlTagBinding binding = createBinding(schema, "/answer");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/answer");
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("텍스트<answer>");
+      List<ContentStreamResult> outputs = adapter.feedToken("텍스트<answer>");
 
       assertThat(outputs).hasSize(2);
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs.get(0)).content()).isEqualTo("텍스트");
-      assertThat(outputs.get(1)).isInstanceOf(XmlStreamOutput.Enter.class);
-      assertThat(((XmlStreamOutput.Enter) outputs.get(1)).path()).isEqualTo("/answer");
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs.get(0)).content()).isEqualTo("텍스트");
+      assertThat(outputs.get(1)).isInstanceOf(ContentStreamResult.Enter.class);
+      assertThat(((ContentStreamResult.Enter) outputs.get(1)).path()).isEqualTo("/answer");
       assertThat(adapter.getCurrentPath()).isEqualTo("/answer");
     }
   }
@@ -189,26 +236,25 @@ class ContentStreamAdapterTest {
     void testOpenCloseSequence() {
       TransitionSchema schema = TransitionSchema.root()
           .path("thinking");
-      XmlTagBinding binding = createBinding(schema, "/thinking");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/thinking");
 
       // <thinking>
-      List<XmlStreamOutput> openOutputs = adapter.feedToken("<thinking>");
+      List<ContentStreamResult> openOutputs = adapter.feedToken("<thinking>");
       assertThat(openOutputs).hasSize(1);
-      assertThat(openOutputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
+      assertThat(openOutputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
       assertThat(adapter.getCurrentPath()).isEqualTo("/thinking");
 
       // 내용
-      List<XmlStreamOutput> outputs = adapter.feedToken("content");
+      List<ContentStreamResult> outputs = adapter.feedToken("content");
       assertThat(outputs).hasSize(1);
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs.get(0)).content()).isEqualTo("content");
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs.get(0)).content()).isEqualTo("content");
 
       // </thinking>
-      List<XmlStreamOutput> closeOutputs = adapter.feedToken("</thinking>");
+      List<ContentStreamResult> closeOutputs = adapter.feedToken("</thinking>");
       assertThat(closeOutputs).hasSize(1);
-      assertThat(closeOutputs.get(0)).isInstanceOf(XmlStreamOutput.Exit.class);
-      assertThat(((XmlStreamOutput.Exit) closeOutputs.get(0)).path()).isEqualTo("/thinking");
+      assertThat(closeOutputs.get(0)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) closeOutputs.get(0)).path()).isEqualTo("/thinking");
       assertThat(adapter.getCurrentPath()).isEqualTo("/");
     }
 
@@ -218,42 +264,41 @@ class ContentStreamAdapterTest {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite", cite -> cite
               .path("id"));
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite")
           .and()
           .bind("/cite/id").tag("id")
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
       // <cite>
-      List<XmlStreamOutput> citeOpen = adapter.feedToken("<cite>");
+      List<ContentStreamResult> citeOpen = adapter.feedToken("<cite>");
       assertThat(citeOpen).hasSize(1);
-      assertThat(citeOpen.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
+      assertThat(citeOpen.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
       assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
 
       // <id>
-      List<XmlStreamOutput> idOpen = adapter.feedToken("<id>");
+      List<ContentStreamResult> idOpen = adapter.feedToken("<id>");
       assertThat(idOpen).hasSize(1);
-      assertThat(idOpen.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
+      assertThat(idOpen.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
       assertThat(adapter.getCurrentPath()).isEqualTo("/cite/id");
 
       // 내용
-      List<XmlStreamOutput> outputs = adapter.feedToken("123");
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
+      List<ContentStreamResult> outputs = adapter.feedToken("123");
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Text.class);
 
       // </id>
-      List<XmlStreamOutput> idClose = adapter.feedToken("</id>");
+      List<ContentStreamResult> idClose = adapter.feedToken("</id>");
       assertThat(idClose).hasSize(1);
-      assertThat(idClose.get(0)).isInstanceOf(XmlStreamOutput.Exit.class);
-      assertThat(((XmlStreamOutput.Exit) idClose.get(0)).path()).isEqualTo("/cite/id");
+      assertThat(idClose.get(0)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) idClose.get(0)).path()).isEqualTo("/cite/id");
       assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
 
       // </cite>
-      List<XmlStreamOutput> citeClose = adapter.feedToken("</cite>");
+      List<ContentStreamResult> citeClose = adapter.feedToken("</cite>");
       assertThat(citeClose).hasSize(1);
-      assertThat(citeClose.get(0)).isInstanceOf(XmlStreamOutput.Exit.class);
-      assertThat(((XmlStreamOutput.Exit) citeClose.get(0)).path()).isEqualTo("/cite");
+      assertThat(citeClose.get(0)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) citeClose.get(0)).path()).isEqualTo("/cite");
       assertThat(adapter.getCurrentPath()).isEqualTo("/");
     }
 
@@ -262,17 +307,16 @@ class ContentStreamAdapterTest {
     void testInvalidCloseTag() {
       TransitionSchema schema = TransitionSchema.root()
           .path("thinking");
-      XmlTagBinding binding = createBinding(schema, "/thinking");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/thinking");
 
       adapter.feedToken("<thinking>");
       assertThat(adapter.getCurrentPath()).isEqualTo("/thinking");
 
       // 잘못된 닫기 태그
-      List<XmlStreamOutput> outputs = adapter.feedToken("</answer>");
+      List<ContentStreamResult> outputs = adapter.feedToken("</answer>");
       assertThat(outputs).hasSize(1);
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs.get(0)).content()).isEqualTo("</answer>");
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs.get(0)).content()).isEqualTo("</answer>");
       assertThat(adapter.getCurrentPath()).isEqualTo("/thinking");
     }
   }
@@ -288,16 +332,15 @@ class ContentStreamAdapterTest {
     void testOpenWithAlias() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite").alias("rag")
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("<rag>");
+      List<ContentStreamResult> outputs = adapter.feedToken("<rag>");
 
       assertThat(outputs).hasSize(1);
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
       assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
     }
 
@@ -306,23 +349,22 @@ class ContentStreamAdapterTest {
     void testCloseWithAlias() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite").alias("rag")
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
       // <cite>로 열고
-      List<XmlStreamOutput> openOutputs = adapter.feedToken("<cite>");
+      List<ContentStreamResult> openOutputs = adapter.feedToken("<cite>");
       assertThat(openOutputs).hasSize(1);
-      assertThat(openOutputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
+      assertThat(openOutputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
       assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
 
       // </rag>로 닫기
-      List<XmlStreamOutput> closeOutputs = adapter.feedToken("</rag>");
+      List<ContentStreamResult> closeOutputs = adapter.feedToken("</rag>");
       assertThat(closeOutputs).hasSize(1);
-      assertThat(closeOutputs.get(0)).isInstanceOf(XmlStreamOutput.Exit.class);
-      assertThat(((XmlStreamOutput.Exit) closeOutputs.get(0)).path()).isEqualTo("/cite");
+      assertThat(closeOutputs.get(0)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) closeOutputs.get(0)).path()).isEqualTo("/cite");
       assertThat(adapter.getCurrentPath()).isEqualTo("/");
     }
 
@@ -331,22 +373,21 @@ class ContentStreamAdapterTest {
     void testMixedAliasUsage() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite").alias("rag")
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
       // <rag>로 열고
       adapter.feedToken("<rag>");
-      List<XmlStreamOutput> outputs = adapter.feedToken("content");
+      List<ContentStreamResult> outputs = adapter.feedToken("content");
       assertThat(adapter.getCurrentPath()).isEqualTo("/cite");
 
       // </cite>로 닫기
-      List<XmlStreamOutput> closeOutputs = adapter.feedToken("</cite>");
+      List<ContentStreamResult> closeOutputs = adapter.feedToken("</cite>");
       assertThat(closeOutputs).hasSize(1);
-      assertThat(closeOutputs.get(0)).isInstanceOf(XmlStreamOutput.Exit.class);
-      assertThat(((XmlStreamOutput.Exit) closeOutputs.get(0)).path()).isEqualTo("/cite");
+      assertThat(closeOutputs.get(0)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) closeOutputs.get(0)).path()).isEqualTo("/cite");
       assertThat(adapter.getCurrentPath()).isEqualTo("/");
     }
   }
@@ -362,16 +403,15 @@ class ContentStreamAdapterTest {
     void testTagAcrossTokens() {
       TransitionSchema schema = TransitionSchema.root()
           .path("answer");
-      XmlTagBinding binding = createBinding(schema, "/answer");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/answer");
 
       // "<ans"와 "wer>"로 분할
-      List<XmlStreamOutput> outputs1 = adapter.feedToken("<ans");
+      List<ContentStreamResult> outputs1 = adapter.feedToken("<ans");
       assertThat(outputs1).isEmpty();
 
-      List<XmlStreamOutput> outputs2 = adapter.feedToken("wer>");
+      List<ContentStreamResult> outputs2 = adapter.feedToken("wer>");
       assertThat(outputs2).hasSize(1);
-      assertThat(outputs2.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
+      assertThat(outputs2.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
       assertThat(adapter.getCurrentPath()).isEqualTo("/answer");
     }
 
@@ -380,15 +420,14 @@ class ContentStreamAdapterTest {
     void testFlush() {
       TransitionSchema schema = TransitionSchema.root()
           .path("answer");
-      XmlTagBinding binding = createBinding(schema, "/answer");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/answer");
 
       adapter.feedToken("<ans");
 
-      List<XmlStreamOutput> flushed = adapter.flush();
+      List<ContentStreamResult> flushed = adapter.flush();
       assertThat(flushed).hasSize(1);
-      assertThat(flushed.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) flushed.get(0)).content()).isEqualTo("<ans");
+      assertThat(flushed.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) flushed.get(0)).content()).isEqualTo("<ans");
     }
 
     @Test
@@ -396,10 +435,9 @@ class ContentStreamAdapterTest {
     void testEmptyContentIgnored() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("");
+      List<ContentStreamResult> outputs = adapter.feedToken("");
 
       assertThat(outputs).isEmpty();
     }
@@ -417,10 +455,9 @@ class ContentStreamAdapterTest {
       TransitionSchema schema = TransitionSchema.root()
           .path("thinking")
           .path("answer");
-      XmlTagBinding binding = createBinding(schema, "/thinking", "/answer");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/thinking", "/answer");
 
-      List<XmlStreamOutput> allOutputs = new ArrayList<>();
+      List<ContentStreamResult> allOutputs = new ArrayList<>();
 
       allOutputs.addAll(adapter.feedToken("<thinking>"));
       allOutputs.addAll(adapter.feedToken("법률 검토 중..."));
@@ -430,18 +467,18 @@ class ContentStreamAdapterTest {
       allOutputs.addAll(adapter.feedToken("</answer>"));
 
       assertThat(allOutputs).hasSize(6);
-      assertThat(allOutputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
-      assertThat(((XmlStreamOutput.Enter) allOutputs.get(0)).path()).isEqualTo("/thinking");
-      assertThat(allOutputs.get(1)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) allOutputs.get(1)).content()).isEqualTo("법률 검토 중...");
-      assertThat(allOutputs.get(2)).isInstanceOf(XmlStreamOutput.Exit.class);
-      assertThat(((XmlStreamOutput.Exit) allOutputs.get(2)).path()).isEqualTo("/thinking");
-      assertThat(allOutputs.get(3)).isInstanceOf(XmlStreamOutput.Enter.class);
-      assertThat(((XmlStreamOutput.Enter) allOutputs.get(3)).path()).isEqualTo("/answer");
-      assertThat(allOutputs.get(4)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) allOutputs.get(4)).content()).isEqualTo("결론은 A입니다.");
-      assertThat(allOutputs.get(5)).isInstanceOf(XmlStreamOutput.Exit.class);
-      assertThat(((XmlStreamOutput.Exit) allOutputs.get(5)).path()).isEqualTo("/answer");
+      assertThat(allOutputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
+      assertThat(((ContentStreamResult.Enter) allOutputs.get(0)).path()).isEqualTo("/thinking");
+      assertThat(allOutputs.get(1)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) allOutputs.get(1)).content()).isEqualTo("법률 검토 중...");
+      assertThat(allOutputs.get(2)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) allOutputs.get(2)).path()).isEqualTo("/thinking");
+      assertThat(allOutputs.get(3)).isInstanceOf(ContentStreamResult.Enter.class);
+      assertThat(((ContentStreamResult.Enter) allOutputs.get(3)).path()).isEqualTo("/answer");
+      assertThat(allOutputs.get(4)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) allOutputs.get(4)).content()).isEqualTo("결론은 A입니다.");
+      assertThat(allOutputs.get(5)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) allOutputs.get(5)).path()).isEqualTo("/answer");
     }
 
     @Test
@@ -451,7 +488,7 @@ class ContentStreamAdapterTest {
           .path("cite", cite -> cite
               .path("id")
               .path("source"));
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite")
           .and()
           .bind("/cite/id").tag("id")
@@ -459,9 +496,8 @@ class ContentStreamAdapterTest {
           .bind("/cite/source").tag("source")
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
-      List<XmlStreamOutput> allOutputs = new ArrayList<>();
+      List<ContentStreamResult> allOutputs = new ArrayList<>();
 
       allOutputs.addAll(adapter.feedToken("<cite>"));
       allOutputs.addAll(adapter.feedToken("<id>"));
@@ -474,9 +510,9 @@ class ContentStreamAdapterTest {
 
       assertThat(allOutputs).hasSize(8);
 
-      List<XmlStreamOutput.Text> textOutputs = allOutputs.stream()
-          .filter(t -> t instanceof XmlStreamOutput.Text)
-          .map(t -> (XmlStreamOutput.Text) t)
+      List<ContentStreamResult.Text> textOutputs = allOutputs.stream()
+          .filter(t -> t instanceof ContentStreamResult.Text)
+          .map(t -> (ContentStreamResult.Text) t)
           .toList();
       assertThat(textOutputs).hasSize(2);
       assertThat(textOutputs.get(0).content()).isEqualTo("doc-123");
@@ -488,10 +524,9 @@ class ContentStreamAdapterTest {
     void testTagSplitAcrossTokens() {
       TransitionSchema schema = TransitionSchema.root()
           .path("thinking");
-      XmlTagBinding binding = createBinding(schema, "/thinking");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/thinking");
 
-      List<XmlStreamOutput> allOutputs = new ArrayList<>();
+      List<ContentStreamResult> allOutputs = new ArrayList<>();
 
       allOutputs.addAll(adapter.feedToken("<thi"));
       allOutputs.addAll(adapter.feedToken("nking>"));
@@ -503,17 +538,17 @@ class ContentStreamAdapterTest {
       allOutputs.addAll(adapter.feedToken("nking>"));
 
       assertThat(allOutputs).hasSize(5);
-      assertThat(allOutputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
+      assertThat(allOutputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
 
-      List<XmlStreamOutput.Text> textOutputs = allOutputs.stream()
-          .filter(t -> t instanceof XmlStreamOutput.Text)
-          .map(t -> (XmlStreamOutput.Text) t)
+      List<ContentStreamResult.Text> textOutputs = allOutputs.stream()
+          .filter(t -> t instanceof ContentStreamResult.Text)
+          .map(t -> (ContentStreamResult.Text) t)
           .toList();
-      assertThat(textOutputs).extracting(XmlStreamOutput.Text::content)
+      assertThat(textOutputs).extracting(ContentStreamResult.Text::content)
           .containsExactly("Let me ", "think", "...");
 
-      assertThat(allOutputs.get(4)).isInstanceOf(XmlStreamOutput.Exit.class);
-      assertThat(((XmlStreamOutput.Exit) allOutputs.get(4)).path()).isEqualTo("/thinking");
+      assertThat(allOutputs.get(4)).isInstanceOf(ContentStreamResult.Exit.class);
+      assertThat(((ContentStreamResult.Exit) allOutputs.get(4)).path()).isEqualTo("/thinking");
     }
   }
 
@@ -528,24 +563,23 @@ class ContentStreamAdapterTest {
     void testMultipleTokensReturnedSeparately() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
-      List<XmlStreamOutput> outputs1 = adapter.feedToken("Hello");
-      List<XmlStreamOutput> outputs2 = adapter.feedToken(" ");
-      List<XmlStreamOutput> outputs3 = adapter.feedToken("World");
+      List<ContentStreamResult> outputs1 = adapter.feedToken("Hello");
+      List<ContentStreamResult> outputs2 = adapter.feedToken(" ");
+      List<ContentStreamResult> outputs3 = adapter.feedToken("World");
 
       assertThat(outputs1).hasSize(1);
-      assertThat(outputs1.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs1.get(0)).content()).isEqualTo("Hello");
+      assertThat(outputs1.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs1.get(0)).content()).isEqualTo("Hello");
 
       assertThat(outputs2).hasSize(1);
-      assertThat(outputs2.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs2.get(0)).content()).isEqualTo(" ");
+      assertThat(outputs2.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs2.get(0)).content()).isEqualTo(" ");
 
       assertThat(outputs3).hasSize(1);
-      assertThat(outputs3.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs3.get(0)).content()).isEqualTo("World");
+      assertThat(outputs3.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs3.get(0)).content()).isEqualTo("World");
     }
   }
 
@@ -560,8 +594,7 @@ class ContentStreamAdapterTest {
     void testSimpleTextAccumulation() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
       adapter.feedToken("Hello ");
       adapter.feedToken("World");
@@ -574,8 +607,7 @@ class ContentStreamAdapterTest {
     void testRawWithTags() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = createBinding(schema, "/cite");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/cite");
 
       adapter.feedToken("안녕 ");
       adapter.feedToken("<cite>");
@@ -591,8 +623,7 @@ class ContentStreamAdapterTest {
     void testInitialStateReturnsEmpty() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
       assertThat(adapter.getRaw()).isEmpty();
     }
@@ -602,8 +633,7 @@ class ContentStreamAdapterTest {
     void testGetRawResetAfterFlush() {
       TransitionSchema schema = TransitionSchema.root()
           .path("test");
-      XmlTagBinding binding = createBinding(schema, "/test");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/test");
 
       adapter.feedToken("Hello ");
       adapter.feedToken("World");
@@ -619,8 +649,7 @@ class ContentStreamAdapterTest {
     void testAdapterReusableAfterFlush() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = createBinding(schema, "/cite");
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/cite");
 
       // 첫 번째 스트림 - 태그 안에서 끝남 (불균형)
       adapter.feedToken("first <cite>open");
@@ -631,11 +660,11 @@ class ContentStreamAdapterTest {
       assertThat(adapter.getRaw()).isEmpty();
 
       // 두 번째 스트림 - 이전 스트림 흔적 없이 독립 동작
-      List<XmlStreamOutput> outputs = adapter.feedToken("<cite>second</cite>");
+      List<ContentStreamResult> outputs = adapter.feedToken("<cite>second</cite>");
 
       assertThat(adapter.getRaw()).isEqualTo("<cite>second</cite>");
-      assertThat(outputs).anyMatch(o -> o instanceof XmlStreamOutput.Enter e && e.path().equals("/cite"));
-      assertThat(outputs).anyMatch(o -> o instanceof XmlStreamOutput.Exit e && e.path().equals("/cite"));
+      assertThat(outputs).anyMatch(o -> o instanceof ContentStreamResult.Enter e && e.path().equals("/cite"));
+      assertThat(outputs).anyMatch(o -> o instanceof ContentStreamResult.Exit e && e.path().equals("/cite"));
     }
   }
 
@@ -650,27 +679,26 @@ class ContentStreamAdapterTest {
     void testTagWithAttributes() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite").attr("id", "source")
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">content</cite>");
+      List<ContentStreamResult> outputs = adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">content</cite>");
       outputs.addAll(adapter.flush());
 
       assertThat(outputs).hasSize(3);
 
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
-      XmlStreamOutput.Enter enter = (XmlStreamOutput.Enter) outputs.get(0);
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
+      ContentStreamResult.Enter enter = (ContentStreamResult.Enter) outputs.get(0);
       assertThat(enter.path()).isEqualTo("/cite");
       assertThat(enter.attributes()).containsEntry("id", "ref1");
       assertThat(enter.attributes()).containsEntry("source", "wiki");
 
-      assertThat(outputs.get(1)).isInstanceOf(XmlStreamOutput.Text.class);
-      assertThat(((XmlStreamOutput.Text) outputs.get(1)).content()).isEqualTo("content");
+      assertThat(outputs.get(1)).isInstanceOf(ContentStreamResult.Text.class);
+      assertThat(((ContentStreamResult.Text) outputs.get(1)).content()).isEqualTo("content");
 
-      assertThat(outputs.get(2)).isInstanceOf(XmlStreamOutput.Exit.class);
+      assertThat(outputs.get(2)).isInstanceOf(ContentStreamResult.Exit.class);
     }
 
     @Test
@@ -678,17 +706,16 @@ class ContentStreamAdapterTest {
     void testAttributeFiltering() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite").attr("id")  // source는 허용 안 함
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">x</cite>");
+      List<ContentStreamResult> outputs = adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">x</cite>");
       outputs.addAll(adapter.flush());
 
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
-      XmlStreamOutput.Enter enter = (XmlStreamOutput.Enter) outputs.get(0);
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
+      ContentStreamResult.Enter enter = (ContentStreamResult.Enter) outputs.get(0);
       assertThat(enter.attributes()).containsEntry("id", "ref1");
       assertThat(enter.attributes()).doesNotContainKey("source");
     }
@@ -698,17 +725,16 @@ class ContentStreamAdapterTest {
     void testTagWithoutAttributes() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite").attr("id")
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("<cite>content</cite>");
+      List<ContentStreamResult> outputs = adapter.feedToken("<cite>content</cite>");
       outputs.addAll(adapter.flush());
 
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
-      XmlStreamOutput.Enter enter = (XmlStreamOutput.Enter) outputs.get(0);
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
+      ContentStreamResult.Enter enter = (ContentStreamResult.Enter) outputs.get(0);
       assertThat(enter.attributes()).isEmpty();
     }
 
@@ -717,19 +743,18 @@ class ContentStreamAdapterTest {
     void testAttributeSplitAcrossTokens() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = XmlTagBinding.from(schema)
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
           .bind("/cite").tag("cite").attr("id")
           .and()
           .build();
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
-      List<XmlStreamOutput> allOutputs = new ArrayList<>();
+      List<ContentStreamResult> allOutputs = new ArrayList<>();
       allOutputs.addAll(adapter.feedToken("<cite id=\"ref"));
       allOutputs.addAll(adapter.feedToken("1\">content</cite>"));
       allOutputs.addAll(adapter.flush());
 
-      assertThat(allOutputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
-      XmlStreamOutput.Enter enter = (XmlStreamOutput.Enter) allOutputs.get(0);
+      assertThat(allOutputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
+      ContentStreamResult.Enter enter = (ContentStreamResult.Enter) allOutputs.get(0);
       assertThat(enter.attributes()).containsEntry("id", "ref1");
     }
 
@@ -738,15 +763,47 @@ class ContentStreamAdapterTest {
     void testNoAttrDefinedFiltersAll() {
       TransitionSchema schema = TransitionSchema.root()
           .path("cite");
-      XmlTagBinding binding = createBinding(schema, "/cite");  // attr 없음
-      ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+      ContentStreamAdapter adapter = createAdapter(schema, "/cite");  // attr 없음
 
-      List<XmlStreamOutput> outputs = adapter.feedToken("<cite id=\"ref1\">content</cite>");
+      List<ContentStreamResult> outputs = adapter.feedToken("<cite id=\"ref1\">content</cite>");
       outputs.addAll(adapter.flush());
 
-      assertThat(outputs.get(0)).isInstanceOf(XmlStreamOutput.Enter.class);
-      XmlStreamOutput.Enter enter = (XmlStreamOutput.Enter) outputs.get(0);
+      assertThat(outputs.get(0)).isInstanceOf(ContentStreamResult.Enter.class);
+      ContentStreamResult.Enter enter = (ContentStreamResult.Enter) outputs.get(0);
       assertThat(enter.attributes()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 태그 이름을 현재 경로에 맞는 자식 경로로 해석")
+    void testSameTagNameUnderDifferentParents() {
+      TransitionSchema schema = TransitionSchema.root()
+          .path("section", section -> section
+              .path("title")
+              .path("subsection", subsection -> subsection
+                  .path("title")));
+      ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
+          .bind("/section").tag("section")
+          .and()
+          .bind("/section/title").tag("title")
+          .and()
+          .bind("/section/subsection").tag("subsection")
+          .and()
+          .bind("/section/subsection/title").tag("title")
+          .and()
+          .build();
+
+      List<ContentStreamResult> outputs = adapter.feedToken(
+          "<section><title>A</title><subsection><title>B</title></subsection></section>");
+      outputs.addAll(adapter.flush());
+
+      assertThat(outputs)
+          .filteredOn(ContentStreamResult.Enter.class::isInstance)
+          .extracting(output -> ((ContentStreamResult.Enter) output).path())
+          .containsExactly(
+              "/section",
+              "/section/title",
+              "/section/subsection",
+              "/section/subsection/title");
     }
   }
 }

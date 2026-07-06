@@ -1,4 +1,4 @@
-package dev.hanju.adapter.buffer;
+package dev.hanju.adapter.matching;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,11 +35,11 @@ public class TokenBuffer {
   /** 추가된 토큰 총 수 */
   private int tokenCount = 0;
 
-  /** 논리적 첫 번째 live 토큰의 인덱스 (tokenEnds 기준) */
-  private int headToken = 0;
-
   /** 논리적 첫 번째 live 문자의 절대 위치 (chars 기준) */
   private int headChar = 0;
+
+  /** 논리적 첫 번째 live 토큰의 인덱스 (tokenEnds 기준) */
+  private int headToken = 0;
 
   /** 기본 생성자 */
   public TokenBuffer() {}

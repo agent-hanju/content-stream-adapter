@@ -49,7 +49,7 @@ public class TransitionSchema {
       throw new IllegalArgumentException("Path name cannot be null or empty");
     }
 
-    String childPath = buildPath(name);
+    final String childPath = buildPath(name);
     paths.add(childPath);
 
     return this;
@@ -70,37 +70,35 @@ public class TransitionSchema {
       throw new IllegalArgumentException("Builder cannot be null");
     }
 
-    String childPath = buildPath(name);
+    final String childPath = buildPath(name);
     paths.add(childPath);
 
-    TransitionSchema childContext = new TransitionSchema(childPath, paths);
+    final TransitionSchema childContext = new TransitionSchema(childPath, paths);
     builder.accept(childContext);
 
     return this;
   }
 
   /**
-   * 모든 경로를 반환합니다.
+   * 모든 자식 경로를 반환합니다.
    *
-   * @return 모든 경로의 불변 집합
+   * @return 모든 자식 경로의 불변 집합
    */
-  public Set<String> getAllPaths() {
+  public Set<String> toPaths() {
     return Collections.unmodifiableSet(paths);
   }
 
+  /**
+   * 자식 경로 생성용 메서드
+   *
+   * @param segmentName 생성할 하위 경로의 이름
+   * @return 루트부터 하위 경로까지의 전체 경로 문자열
+   */
   private String buildPath(String segmentName) {
     if (currentPath.equals("/")) {
       return "/" + segmentName;
     } else {
       return currentPath + "/" + segmentName;
     }
-  }
-
-  String getCurrentPath() {
-    return currentPath;
-  }
-
-  int getPathCount() {
-    return paths.size();
   }
 }

@@ -8,8 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import dev.hanju.adapter.ContentStreamAdapter;
 import dev.hanju.adapter.transition.TransitionSchema;
-import dev.hanju.adapter.xml.XmlStreamOutput;
-import dev.hanju.adapter.xml.XmlTagBinding;
+import dev.hanju.adapter.ContentStreamResult;
 
 class ContentStreamAdapterAttributeTest {
 
@@ -18,17 +17,15 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+    List<ContentStreamResult> outputs = adapter.feedToken("<cite id=\"ref1\">content</cite>");
 
-    List<XmlStreamOutput> outputs = adapter.feedToken("<cite id=\"ref1\">content</cite>");
-
-    XmlStreamOutput.Enter enterEvent = outputs.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
+    ContentStreamResult.Enter enterEvent = outputs.stream()
+        .filter(t -> t instanceof ContentStreamResult.Enter)
+        .map(t -> (ContentStreamResult.Enter) t)
         .findFirst()
         .orElseThrow();
 
@@ -41,18 +38,16 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id", "source", "page")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
-
-    List<XmlStreamOutput> outputs = adapter
+    List<ContentStreamResult> outputs = adapter
         .feedToken("<cite id=\"ref1\" source=\"wiki\" page=\"123\">text</cite>");
 
-    XmlStreamOutput.Enter enterEvent = outputs.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
+    ContentStreamResult.Enter enterEvent = outputs.stream()
+        .filter(t -> t instanceof ContentStreamResult.Enter)
+        .map(t -> (ContentStreamResult.Enter) t)
         .findFirst()
         .orElseThrow();
 
@@ -67,17 +62,15 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("think");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/think").tag("think")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+    List<ContentStreamResult> outputs = adapter.feedToken("<think>reasoning</think>");
 
-    List<XmlStreamOutput> outputs = adapter.feedToken("<think>reasoning</think>");
-
-    XmlStreamOutput.Enter enterEvent = outputs.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
+    ContentStreamResult.Enter enterEvent = outputs.stream()
+        .filter(t -> t instanceof ContentStreamResult.Enter)
+        .map(t -> (ContentStreamResult.Enter) t)
         .findFirst()
         .orElseThrow();
 
@@ -89,22 +82,20 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
-
-    List<XmlStreamOutput> outputs1 = adapter.feedToken("Text <cite id=\"re");
-    List<XmlStreamOutput> outputs2 = adapter.feedToken("f1\">content</cite>");
+    List<ContentStreamResult> outputs1 = adapter.feedToken("Text <cite id=\"re");
+    List<ContentStreamResult> outputs2 = adapter.feedToken("f1\">content</cite>");
 
     assertThat(outputs1).hasSize(1);
-    assertThat(outputs1.get(0)).isInstanceOf(XmlStreamOutput.Text.class);
-    assertThat(((XmlStreamOutput.Text) outputs1.get(0)).content()).isEqualTo("Text ");
+    assertThat(outputs1.get(0)).isInstanceOf(ContentStreamResult.Text.class);
+    assertThat(((ContentStreamResult.Text) outputs1.get(0)).content()).isEqualTo("Text ");
 
-    XmlStreamOutput.Enter enterEvent = outputs2.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
+    ContentStreamResult.Enter enterEvent = outputs2.stream()
+        .filter(t -> t instanceof ContentStreamResult.Enter)
+        .map(t -> (ContentStreamResult.Enter) t)
         .findFirst()
         .orElseThrow();
 
@@ -116,17 +107,15 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+    List<ContentStreamResult> outputs = adapter.feedToken("<cite id=\"ref1\">text</cite>");
 
-    List<XmlStreamOutput> outputs = adapter.feedToken("<cite id=\"ref1\">text</cite>");
-
-    XmlStreamOutput.Exit exitEvent = outputs.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Exit)
-        .map(t -> (XmlStreamOutput.Exit) t)
+    ContentStreamResult.Exit exitEvent = outputs.stream()
+        .filter(t -> t instanceof ContentStreamResult.Exit)
+        .map(t -> (ContentStreamResult.Exit) t)
         .findFirst()
         .orElseThrow();
 
@@ -138,18 +127,16 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("title")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
-
-    List<XmlStreamOutput> outputs = adapter
+    List<ContentStreamResult> outputs = adapter
         .feedToken("<cite title=\"New York Times\">article</cite>");
 
-    XmlStreamOutput.Enter enterEvent = outputs.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
+    ContentStreamResult.Enter enterEvent = outputs.stream()
+        .filter(t -> t instanceof ContentStreamResult.Enter)
+        .map(t -> (ContentStreamResult.Enter) t)
         .findFirst()
         .orElseThrow();
 
@@ -162,20 +149,18 @@ class ContentStreamAdapterAttributeTest {
         .path("section", section -> section
             .path("cite"));
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/section").tag("section").attr("id")
         .and()
         .bind("/section/cite").tag("cite").attr("ref")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
-
-    List<XmlStreamOutput> outputs = adapter.feedToken(
+    List<ContentStreamResult> outputs = adapter.feedToken(
         "<section id=\"s1\"><cite ref=\"r1\">text</cite></section>");
 
-    List<XmlStreamOutput.Enter> enterEvents = outputs.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
+    List<ContentStreamResult.Enter> enterEvents = outputs.stream()
+        .filter(t -> t instanceof ContentStreamResult.Enter)
+        .map(t -> (ContentStreamResult.Enter) t)
         .toList();
 
     assertThat(enterEvents).hasSize(2);
@@ -191,17 +176,15 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+    List<ContentStreamResult> outputs = adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">content</cite>");
 
-    List<XmlStreamOutput> outputs = adapter.feedToken("<cite id=\"ref1\" source=\"wiki\">content</cite>");
-
-    XmlStreamOutput.Enter enterEvent = outputs.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
+    ContentStreamResult.Enter enterEvent = outputs.stream()
+        .filter(t -> t instanceof ContentStreamResult.Enter)
+        .map(t -> (ContentStreamResult.Enter) t)
         .findFirst()
         .orElseThrow();
 
@@ -215,17 +198,15 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
+    List<ContentStreamResult> outputs = adapter.feedToken("<cite>some content</cite>");
 
-    List<XmlStreamOutput> outputs = adapter.feedToken("<cite>some content</cite>");
-
-    XmlStreamOutput.Text textOutput = outputs.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Text)
-        .map(t -> (XmlStreamOutput.Text) t)
+    ContentStreamResult.Text textOutput = outputs.stream()
+        .filter(t -> t instanceof ContentStreamResult.Text)
+        .map(t -> (ContentStreamResult.Text) t)
         .findFirst()
         .orElseThrow();
 
@@ -233,80 +214,53 @@ class ContentStreamAdapterAttributeTest {
   }
 
   @Test
-  void flush_incompleteTagWithAttributes_emitsEnterEvent() {
+  void flush_incompleteTagWithAttributes_emitsText() {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
-
-    List<XmlStreamOutput> outputs1 = adapter.feedToken("Text <cite id=\"ref1\"");
+    List<ContentStreamResult> outputs1 = adapter.feedToken("Text <cite id=\"ref1\"");
     assertThat(outputs1).hasSize(1);
-    assertThat(((XmlStreamOutput.Text) outputs1.get(0)).content()).isEqualTo("Text ");
+    assertThat(((ContentStreamResult.Text) outputs1.get(0)).content()).isEqualTo("Text ");
 
-    List<XmlStreamOutput> flushed = adapter.flush();
+    List<ContentStreamResult> flushed = adapter.flush();
 
-    XmlStreamOutput.Enter enterEvent = flushed.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
-        .findFirst()
-        .orElseThrow();
-
-    assertThat(enterEvent.path()).isEqualTo("/cite");
-    assertThat(enterEvent.attributes()).containsEntry("id", "ref1");
+    assertThat(flushed).containsExactly(new ContentStreamResult.Text("<cite id=\"ref1\""));
   }
 
   @Test
-  void flush_incompleteTagNoAttributes_emitsEnterEvent() {
+  void flush_incompleteTagNoAttributes_emitsText() {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
-
     adapter.feedToken("<cite");
 
-    List<XmlStreamOutput> flushed = adapter.flush();
+    List<ContentStreamResult> flushed = adapter.flush();
 
-    XmlStreamOutput.Enter enterEvent = flushed.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
-        .findFirst()
-        .orElseThrow();
-
-    assertThat(enterEvent.path()).isEqualTo("/cite");
-    assertThat(enterEvent.attributes()).isEmpty();
+    assertThat(flushed).containsExactly(new ContentStreamResult.Text("<cite"));
   }
 
   @Test
-  void flush_incompleteAttributeValue_parsesAvailableAttributes() {
+  void flush_incompleteAttributeValue_emitsText() {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id", "source")
         .build();
 
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
-
     adapter.feedToken("<cite source=\"wiki\" id=\"ref");
 
-    List<XmlStreamOutput> flushed = adapter.flush();
+    List<ContentStreamResult> flushed = adapter.flush();
 
-    XmlStreamOutput.Enter enterEvent = flushed.stream()
-        .filter(t -> t instanceof XmlStreamOutput.Enter)
-        .map(t -> (XmlStreamOutput.Enter) t)
-        .findFirst()
-        .orElseThrow();
-
-    assertThat(enterEvent.attributes()).containsEntry("source", "wiki");
-    assertThat(enterEvent.attributes()).doesNotContainKey("id");
+    assertThat(flushed).containsExactly(new ContentStreamResult.Text("<cite source=\"wiki\" id=\"ref"));
   }
 
   @Test
@@ -314,11 +268,9 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id")
         .build();
-
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
     adapter.feedToken("Hello ");
     adapter.feedToken("<cite id=\"ref1\">");
@@ -334,11 +286,9 @@ class ContentStreamAdapterAttributeTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite");
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").attr("id")
         .build();
-
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
     adapter.feedToken("Start <cite id=\"re");
     adapter.feedToken("f1\">text");

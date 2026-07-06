@@ -1,10 +1,7 @@
-package dev.hanju.adapter.buffer;
+package dev.hanju.adapter.matching;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import dev.hanju.adapter.matching.AhoCorasickTrie;
-import dev.hanju.adapter.matching.TokenMatchResult;
 
 /**
  * 토큰 경계를 보존하면서 패턴 매칭을 수행하는 버퍼
@@ -18,10 +15,10 @@ public class TokenMatchingBuffer {
   private final TokenBuffer buffer;
 
   // === 호출 간 보존되는 상태 ===
-  private int currentState;
-  private int scanPos = 0;
-  private int bestStart = -1;
-  private int bestEnd = -1;
+  private int currentState;    // AhoCorasickTrie 상의 현재 위치 (buffer.getContent() 기준 scanPos까지 소비한 상태)
+  private int scanPos = 0;     // buffer.getContent() 안에서 아직 훑지 않은 다음 문자 위치
+  private int bestStart = -1;  // 지금까지 발견된 leftmost-longest 후보 패턴의 시작 위치 (-1이면 후보 없음)
+  private int bestEnd = -1;    // 위 후보 패턴의 끝 위치 (exclusive) — 더 긴 매칭이 나오면 갱신됨
 
   /**
    * TokenMatchingBuffer를 생성합니다.
@@ -44,7 +41,7 @@ public class TokenMatchingBuffer {
    * @param token 입력 토큰
    * @return 확정된 토큰 기반 매칭 결과 리스트
    */
-  public List<TokenMatchResult> accept(final String token) {
+  public List<TokenMatchingResult> accept(final String token) {
     buffer.addToken(token);
     return drain(false);
   }
@@ -58,7 +55,7 @@ public class TokenMatchingBuffer {
    * @param tokens 입력 토큰 목록
    * @return 확정된 토큰 기반 매칭 결과 리스트
    */
-  public List<TokenMatchResult> acceptAll(final List<String> tokens) {
+  public List<TokenMatchingResult> acceptAll(final List<String> tokens) {
     if (tokens == null) {
       throw new IllegalArgumentException("tokens must not be null");
     }
@@ -75,12 +72,12 @@ public class TokenMatchingBuffer {
    *
    * @return 토큰 기반 매칭 결과 리스트
    */
-  public List<TokenMatchResult> flush() {
-    final List<TokenMatchResult> results = drain(true);
+  public List<TokenMatchingResult> flush() {
+    final List<TokenMatchingResult> results = drain(true);
 
     // 남은 내용은 전부 텍스트로 확정
     if (!buffer.isEmpty()) {
-      results.add(TokenMatchResult.text(buffer.flush()));
+      results.add(TokenMatchingResult.text(buffer.flush()));
     }
 
     // 상태 리셋
@@ -93,14 +90,14 @@ public class TokenMatchingBuffer {
 
   /**
    * 버퍼를 스캔하여 확정 가능한 매칭 결과를 모두 수집합니다.
-   * Maximal Munch: 가장 이른 시작 위치의 가장 긴 패턴을 선택합니다.
+   * Leftmost-Longest 패턴(가장 이른 시작 위치의, 그중 가장 긴 패턴)을 선택합니다.
    *
    * - accepting state 도달 시 → 후보로 기록 (더 긴 매칭 가능성 대기)
    * - 직접 전이 불가 + 후보 있음 → 확정
    * - maxPatternLength 초과 → 안전장치로 확정
    */
-  private List<TokenMatchResult> drain(boolean isFinal) {
-    final List<TokenMatchResult> results = new ArrayList<>();
+  private List<TokenMatchingResult> drain(boolean isFinal) {
+    final List<TokenMatchingResult> results = new ArrayList<>();
 
     while (!buffer.isEmpty()) {
       final String text = buffer.getContent();
@@ -109,7 +106,7 @@ public class TokenMatchingBuffer {
       while (scanPos < text.length()) {
         final char c = text.charAt(scanPos);
 
-        // 후보 패턴이 있고 직접 확장할 수 없으면, 현재 후보를 maximal munch 결과로 확정합니다.
+        // 후보 패턴이 있고 직접 확장할 수 없으면, 현재 후보를 leftmost-longest 결과로 확정합니다.
         if (!trie.hasNextState(currentState, c) && bestStart >= 0) {
           shouldConfirm = true;
           break;
@@ -181,7 +178,7 @@ public class TokenMatchingBuffer {
         }
       }
 
-      results.add(isPattern ? TokenMatchResult.pattern(tokens) : TokenMatchResult.text(tokens));
+      results.add(isPattern ? TokenMatchingResult.pattern(tokens) : TokenMatchingResult.text(tokens));
     }
 
     return results;

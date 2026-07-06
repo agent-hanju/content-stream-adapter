@@ -4,8 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import dev.hanju.adapter.ContentStreamAdapter;
 import dev.hanju.adapter.transition.TransitionSchema;
-import dev.hanju.adapter.xml.XmlStreamOutput;
-import dev.hanju.adapter.xml.XmlTagBinding;
+import dev.hanju.adapter.ContentStreamResult;
 
 import java.util.List;
 
@@ -17,14 +16,12 @@ class BoundaryTest {
     TransitionSchema schema = TransitionSchema.root()
         .path("cite", cite -> cite.path("id"));
 
-    XmlTagBinding binding = XmlTagBinding.from(schema)
+    ContentStreamAdapter adapter = ContentStreamAdapter.from(schema.toPaths())
         .bind("/cite").tag("cite").alias("rag")
         .and()
         .bind("/cite/id").tag("id")
         .and()
         .build();
-
-    ContentStreamAdapter adapter = new ContentStreamAdapter(binding);
 
     String[] chunks = {
       "시작 ",
@@ -41,14 +38,14 @@ class BoundaryTest {
 
     StringBuilder content = new StringBuilder();
     for (String chunk : chunks) {
-      List<XmlStreamOutput> outputs = adapter.feedToken(chunk);
+      List<ContentStreamResult> outputs = adapter.feedToken(chunk);
       System.out.println("Chunk: \"" + chunk + "\"");
-      for (XmlStreamOutput output : outputs) {
-        String outputContent = output instanceof XmlStreamOutput.Text t ? t.content() : null;
-        String path = output instanceof XmlStreamOutput.Enter e ? e.path()
-            : output instanceof XmlStreamOutput.Exit e ? e.path() : null;
-        String type = output instanceof XmlStreamOutput.Enter ? "ENTER"
-            : output instanceof XmlStreamOutput.Exit ? "EXIT" : "TEXT";
+      for (ContentStreamResult output : outputs) {
+        String outputContent = output instanceof ContentStreamResult.Text t ? t.content() : null;
+        String path = output instanceof ContentStreamResult.Enter e ? e.path()
+            : output instanceof ContentStreamResult.Exit e ? e.path() : null;
+        String type = output instanceof ContentStreamResult.Enter ? "ENTER"
+            : output instanceof ContentStreamResult.Exit ? "EXIT" : "TEXT";
         System.out.println("  -> path=" + path + ", content=" + outputContent + ", type=" + type);
 
         if (outputContent != null) {
@@ -60,12 +57,12 @@ class BoundaryTest {
       }
     }
 
-    for (XmlStreamOutput output : adapter.flush()) {
-      String outputContent = output instanceof XmlStreamOutput.Text t ? t.content() : null;
-      String path = output instanceof XmlStreamOutput.Enter e ? e.path()
-          : output instanceof XmlStreamOutput.Exit e ? e.path() : null;
-      String type = output instanceof XmlStreamOutput.Enter ? "ENTER"
-          : output instanceof XmlStreamOutput.Exit ? "EXIT" : "TEXT";
+    for (ContentStreamResult output : adapter.flush()) {
+      String outputContent = output instanceof ContentStreamResult.Text t ? t.content() : null;
+      String path = output instanceof ContentStreamResult.Enter e ? e.path()
+          : output instanceof ContentStreamResult.Exit e ? e.path() : null;
+      String type = output instanceof ContentStreamResult.Enter ? "ENTER"
+          : output instanceof ContentStreamResult.Exit ? "EXIT" : "TEXT";
       System.out.println("Flush -> path=" + path + ", content=" + outputContent + ", type=" + type);
 
       if (outputContent != null) {
